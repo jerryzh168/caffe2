@@ -77,10 +77,13 @@ bool GLNet::Run() {
     }
   }
   VLOG(1) << "Running net " << name_;
+  int i = 0;
   for (auto& op : operators_) {
+    //LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
+    ++i;
     bool res = op->Run();
     if (!res) {
-      LOG(ERROR) << "Operator failed: " << ProtoDebugString(op->debug_def());
+      LOG(ERROR) << "[C2DEBUG] Operator failed: " << ProtoDebugString(op->debug_def());
       return false;
     }
   }
@@ -116,11 +119,11 @@ vector<float> GLNet::TEST_Benchmark(
 
   auto last_blob = output_blobs_[output_blobs_.size() - 1];
   Blob *gpu_out_blob = ws_->GetBlob(last_blob);
-  auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
+  //auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
   // Enforce gpu execution
-  g_.sync();
+  //g_.sync();
 
-  LOG(INFO) << "Main runs.";
+  LOG(ERROR) << "Main runs.";
   CAFFE_ENFORCE(
       main_runs >= 0,
       "Number of main runs should be non negative, provided ",
@@ -130,10 +133,10 @@ vector<float> GLNet::TEST_Benchmark(
   for (int i = 0; i < main_runs; ++i) {
     CAFFE_ENFORCE(Run(), "Main run ", i, " has failed.");
   }
-  g_.sync();
+  //g_.sync();
 
   auto millis = timer.MilliSeconds();
-  LOG(INFO) << "[C2DEBUG] Main run finished. Milliseconds per iter: "
+  LOG(ERROR) << "[C2DEBUG] Main run finished. Milliseconds per iter: "
             << millis / main_runs
             << ". Iters per second: " << 1000.0 * main_runs / millis;
 
@@ -152,8 +155,8 @@ vector<float> GLNet::TEST_Benchmark(
           auto* schema = OpSchemaRegistry::Schema(op_type);
           if (schema && schema->HasCostInferenceFunction()) {
             vector<TensorShape> shapes = op->InputTensorShapes();
-            flops_per_op[idx] =
-                schema->InferCost(op->debug_def(), shapes).flops;
+            //flops_per_op[idx] =
+            //    schema->InferCost(op->debug_def(), shapes).flops;
           }
         }
         timer.Start();
@@ -164,8 +167,9 @@ vector<float> GLNet::TEST_Benchmark(
             "(",
             op_type,
             ") has failed.");
-        if (opengl_device_[idx]) {
+        if (opengl_device_[idx] && op_type != "CopyFromGL") {
           Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
+          //LOG(ERROR) << "[C2DEBUG] trying to sync " << " " << op_type << " " << idx << " " << output_blobs_[idx];
           auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
           g_.sync();
         }
@@ -190,7 +194,7 @@ vector<float> GLNet::TEST_Benchmark(
                   << to_string(1.0e-6 * flops_per_op[idx] / time_per_op[idx])
                   << " GFLOPS)";
       }
-      LOG(INFO) << "[C2DEBUG] Operator #" << idx << " (" << print_name << ", " << op_type
+      LOG(INFO) << "Operator #" << idx << " (" << print_name << ", " << op_type
                 << ") " << time_per_op[idx] / main_runs << " ms/iter"
                 << flops_str.str();
       ++idx;
@@ -204,7 +208,7 @@ vector<float> GLNet::TEST_Benchmark(
         time_per_op_type_vec.end(),
         PairLargerThan<string, float>);
     for (const auto& item : time_per_op_type_vec) {
-      LOG(INFO) << "[C2DEBUG] " << std::setw(15) << std::setfill(' ') << item.second / main_runs
+      LOG(ERROR) << "[C2DEBUG] " << std::setw(15) << std::setfill(' ') << item.second / main_runs
                 << " " << item.first;
     }
   }

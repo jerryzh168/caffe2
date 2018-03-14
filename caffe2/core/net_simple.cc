@@ -120,7 +120,7 @@ vector<float> SimpleNet::TEST_Benchmark(
     CAFFE_ENFORCE(Run(), "Main run ", i, " has failed.");
   }
   auto millis = timer.MilliSeconds();
-  LOG(INFO) << "Main run finished. Milliseconds per iter: "
+  LOG(ERROR) << "[C2DEBUG] Main run finished. Milliseconds per iter: "
             << millis / main_runs
             << ". Iters per second: " << 1000.0 * main_runs / millis;
 
@@ -212,7 +212,7 @@ vector<float> SimpleNet::TEST_Benchmark(
     metric_per_op_type_vec_vec.emplace_back(&memory_bytes_per_op_type);
     metric_per_op_type_vec_vec.emplace_back(&param_bytes_per_op_type);
     for (int i = 0; i < metric_per_op_type_vec_vec.size(); ++i) {
-      LOG(INFO) << metric[i] << " per operator type:";
+      LOG(ERROR) << metric[i] << " per operator type:[C2DEBUG]";
       auto* item = metric_per_op_type_vec_vec[i];
       std::vector<std::pair<string, float>> metric_per_op_type_vec(
           (*item).begin(), (*item).end());
@@ -229,12 +229,12 @@ vector<float> SimpleNet::TEST_Benchmark(
         if (total_metric > 0.) {
           percent = (100.0 * op_item.second * normalizer[i] / total_metric);
         }
-        LOG(INFO) << std::setw(15) << std::setfill(' ')
+        LOG(ERROR) << "[C2DEBUG] " << std::setw(15) << std::setfill(' ')
                   << op_item.second * normalizer[i] << " " << unit[i] << ". "
                   << std::setw(10) << std::setfill(' ') << percent << "%. "
                   << op_item.first;
       }
-      LOG(INFO) << std::setw(15) << std::setfill(' ') << total_metric << " "
+      LOG(ERROR) << "[C2DEBUG] " << std::setw(15) << std::setfill(' ') << total_metric << " "
                 << unit[i] << " in Total";
     }
   }

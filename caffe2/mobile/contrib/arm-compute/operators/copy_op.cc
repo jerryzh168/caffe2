@@ -1,5 +1,6 @@
 #include "caffe2/mobile/contrib/arm-compute/core/context.h"
 #include "caffe2/mobile/contrib/arm-compute/core/operator.h"
+#include "caffe2/core/timer.h"
 
 namespace caffe2 {
 
@@ -61,7 +62,11 @@ bool CopyFromGLOp<T>::RunOnDevice() {
       Output(i)->template mutable_data<float>();
       // hardcoding CPU Tensors to be float
       CAFFE_ENFORCE_EQ(Output(i)->nbytes(), X->size() * sizeof(float));
+      Timer timer;
+      timer.Start();
       getTensorCPU(*X, *(OperatorBase::Outputs()[i]->template GetMutable<TensorCPU>()));
+      auto millis = timer.MilliSeconds();
+      LOG(ERROR) << "[C2DEBUG] copy_op takes " << millis << " milliseconds";
     }
   }
   return true;

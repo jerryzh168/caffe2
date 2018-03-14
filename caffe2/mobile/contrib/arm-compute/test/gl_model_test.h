@@ -42,9 +42,9 @@ namespace caffe2 {
     }
 
     compareNetResult4D(*ws, predict_net_def, predict_net_def_gpu, last_blob, last_blob + "_gpu");
-
-  NetBase* net = ws->CreateNet(predict_net_def);
-  LOG(INFO) << "[C2DEBUG] Benchmarking OpenGL Net";
+  LOG(ERROR) << "[C2DEBUG] after compareNetResult4D";
+  NetBase* net = ws->CreateNet(predict_net_def_gpu);
+  LOG(ERROR) << "[C2DEBUG] Benchmarking OpenGL Net";
   net->TEST_Benchmark(caffe2::FLAGS_warmup, caffe2::FLAGS_iter, caffe2::FLAGS_run_individual);
   // Test CPU
   for (auto i = 0; i < predict_net_def.op().size(); ++i) {

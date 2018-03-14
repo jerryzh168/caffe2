@@ -81,7 +81,7 @@ class GenerateProposalsOp final : public Operator<Context> {
         correct_transform_coords_(OperatorBase::GetSingleArgument<bool>(
             "correct_transform_coords",
             false)) {
-    rpn_post_nms_topN_ = 30;
+    rpn_post_nms_topN_ = 1;
   }
 
   ~GenerateProposalsOp() {}
