@@ -22,19 +22,8 @@ bool CopyFromGLOp<T>::RunOnDevice() {
   auto *X0blob = OperatorBase::Inputs()[0];
   auto X0 = GLContext::getGLTensor<T>(X0blob);
 
-  if (first_run_) {
-    inputs_.push_back(std::move(X0));
-  }
   std::vector<const Blob*> inputsBlob;
   inputsBlob.push_back(X0blob);
-
-  if (first_run_) {
-    for (int i = 1; i < Inputs().size(); ++i) {
-      auto *Xblob = OperatorBase::Inputs()[i];
-      auto X = GLContext::getGLTensor<T>(Xblob);
-      inputs_.push_back(std::move(X));
-    }
-  }
 
   for (int i = 1; i < Inputs().size(); ++i) {
     auto *Xblob = OperatorBase::Inputs()[i];
@@ -42,7 +31,21 @@ bool CopyFromGLOp<T>::RunOnDevice() {
   }
 
   if (first_run_) {
+    LOG(ERROR) << "[C2DEBUG] -- first run CopyFromGL";
+    for (int i = 0; i < Inputs().size(); ++i) {
+      auto *Xblob = inputsBlob[i];
+      auto X = GLContext::getGLTensor<T>(Xblob);
+      inputs_.push_back(std::move(X));
+    }
+  }
+
+  if (first_run_) {
     first_run_ = false;
+    for (int i = 0; i < Inputs().size(); ++i) {
+      auto* Y = OperatorBase::Outputs()[i]->template GetMutable<TensorCPU>();
+      Y->Resize(inputs_[i]->dims());
+      Y->template mutable_data<float>();
+    }
   } else {
     for (int i = 0; i < inputs_.size(); ++i) {
       auto* X = inputs_[i].get();
@@ -66,9 +69,10 @@ bool CopyFromGLOp<T>::RunOnDevice() {
       timer.Start();
       getTensorCPU(*X, *(OperatorBase::Outputs()[i]->template GetMutable<TensorCPU>()));
       auto millis = timer.MilliSeconds();
-      LOG(ERROR) << "[C2DEBUG] copy_op takes " << millis << " milliseconds";
+      //VLOG(2) << "[C2DEBUG] copy_op takes " << millis << " milliseconds";
     }
   }
+
   return true;
 }
 

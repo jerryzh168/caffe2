@@ -258,7 +258,7 @@ bool GenerateProposalsOp<CPUContext>::RunOnDevice() {
         out_rois_probs->mutable_data<float>() + cur_start_idx, csz) =
         im_i_probs;
   }
-  if (out_rois->dim(0) < rpn_post_nms_topN_) {
+  if (fill_output_ && out_rois->dim(0) < rpn_post_nms_topN_) {
     int cur_start_idx = out_rois->dim(0);
     auto csz = rpn_post_nms_topN_ - out_rois->dim(0);
     out_rois->Extend(csz, 50, &context_);
@@ -308,7 +308,7 @@ non-maximum suppression is applied to generate the final bounding boxes.
     .Arg("post_nms_topN", "(int) RPN_POST_NMS_TOP_N")
     .Arg("nms_thresh", "(float) RPN_NMS_THRESH")
     .Arg("min_size", "(float) RPN_MIN_SIZE")
-    .Arg("fix_output", "(bool) whether fix the output to post_nms_topN")
+    .Arg("fill_output", "(bool) whether fix the output to post_nms_topN(this is used in OpenGL net, don't include this argument in the protobuf)")
     .Input(0, "scores", "Scores from conv layer, size (img_count, A, H, W)")
     .Input(
         1,

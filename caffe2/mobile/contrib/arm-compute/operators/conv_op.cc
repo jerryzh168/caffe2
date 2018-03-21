@@ -94,7 +94,27 @@ bool GLConvOp<T>::RunOnDevice() {
         Y->allocate();
       }
     }
+    // hack
+    arm_compute::TensorShape shape;
+    for (int i = 0; i < X_->dims().size(); i++) {
+      shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
+    }
+    X_->get_underlying()->info()->set_tensor_shape(shape);
+    TensorCPU fakeX;
+    fakeX.Resize(X_->dims());
+    TensorCPU fakeY;
+    ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
+    Y->ResizeLike(fakeY);
+    LOG(ERROR) << "[C2DEBUG] X dims " << X_->dims();
+    LOG(ERROR) << "[C2DEBUG] Y dims " << Y->dims();
+    LOG(ERROR) << "[C2DEBUG] conv reconfigure N:" << X_->dims()[0];
+    conv_.configure(
+                    X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
+                    Y->get_underlying(),
+                    arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+    LOG(ERROR) << "[C2DEBUG] after re-configure";
     conv_.run();
+    LOG(ERROR) << "[C2DEBUG] after run";
   }
 
   return true;

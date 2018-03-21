@@ -147,6 +147,7 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
       }
     }
   }
+  LOG(ERROR) << "[C2DEBUG] mdef size" << mdef.op().size();
   return mdef;
 }
 
@@ -243,12 +244,13 @@ NetDef rewritePredictNetForOpenGL(const NetDef& predictNet, bool runFusion, std:
   CAFFE_ENFORCE_GE(predictNet.op_size(), 1);
   NetDef net;
   net.CopyFrom(predictNet);
-
+  LOG(ERROR) << "[C2DEBUG] net size" << net.op().size();
   // if (runFusion) {
   //   net = runOpenGLFusion(net, openGLOps);
   // }
 
   net = insertInputOutputCopyOps(net, cpuOps);
+  LOG(ERROR) << "[C2DEBUG] net size" << net.op().size();
   net.set_type("opengl");
 
   for (auto i = 0; i < net.op().size(); ++i) {

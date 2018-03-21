@@ -194,7 +194,7 @@ vector<float> SimpleNet::TEST_Benchmark(
         memory_bytes_str << " (" << to_string(1.0e-6 * param_bytes_per_op[idx])
                          << " MB)";
       }
-      LOG(INFO) << "Operator #" << idx << " (" << print_name << ", " << op_type
+      LOG(ERROR) << "[C2DEBUG] Operator #" << idx << " (" << print_name << ", " << op_type
                 << ") " << time_per_op[idx] / main_runs << " ms/iter"
                 << flops_str.str() << memory_bytes_str.str()
                 << param_bytes_str.str();

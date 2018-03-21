@@ -26,6 +26,8 @@
 #include "utils/Utils.h"
 #include "include/half/half.hpp"
 
+
+#include "caffe2/core/timer.h"
 namespace caffe2 {
 
 typedef half_float::half half;
@@ -156,7 +158,10 @@ public:
         if (allocate_tensor) {
           allocate();
         }
+        Timer timer;
         fillGLTensor(b);
+        auto millis = timer.MilliSeconds();
+        LOG(ERROR) << "[C2DEBUG] fillGLTensor timer: " << millis;
       }
     }
   }

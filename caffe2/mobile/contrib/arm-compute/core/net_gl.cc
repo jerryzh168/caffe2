@@ -50,15 +50,20 @@ GLNet::GLNet(
     }
 
     std::unique_ptr<OperatorBase> op{nullptr};
+    OperatorDef temp_def(operator_def);
+    if (temp_def.type() == "GenerateProposals") {
+      auto* arg = temp_def.add_arg();
+      arg->set_name("fill_output");
+      arg->set_i(1);
+    }
     if (!operator_def.has_device_option() && net_def_has_device_option) {
       // In the case that the operator def does not specify a device option but
       // the net def has a default option, we copy the device option over to the
       // operator def.
-      OperatorDef temp_def(operator_def);
       temp_def.mutable_device_option()->CopyFrom(net_def->device_option());
       op = CreateOperator(temp_def, ws, idx);
     } else {
-      op = CreateOperator(operator_def, ws, idx);
+      op = CreateOperator(temp_def, ws, idx);
       op->set_debug_def(
           std::shared_ptr<const OperatorDef>{net_def, &(net_def->op(idx))});
     }
@@ -71,12 +76,22 @@ bool GLNet::Run() {
   if (first_run_) {
     first_run_ = false;
     for (auto& op: operators_) {
-      if (op->device_option().device_type() == OPENGL) {
-        op->Run();
-      }
+      LOG(ERROR) << "[C2DEBUG] configure " << op->debug_def().type();
+      op->Run();
     }
   }
   VLOG(1) << "Running net " << name_;
+
+  // Change the parameters for GenerateProposals
+  for (int i = 0; i < operators_.size(); ++i) {
+    if (operators_[i]->debug_def().type() == "GenerateProposals") {
+      OperatorDef temp_def(operators_[i]->debug_def());
+      auto* arg = temp_def.add_arg();
+      arg->set_name("fill_output");
+      arg->set_i(0);
+      operators_[i].reset(CreateOperator(temp_def, ws_, i).release());
+    }
+  }
   int i = 0;
   for (auto& op : operators_) {
     //LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
@@ -194,7 +209,7 @@ vector<float> GLNet::TEST_Benchmark(
                   << to_string(1.0e-6 * flops_per_op[idx] / time_per_op[idx])
                   << " GFLOPS)";
       }
-      LOG(INFO) << "Operator #" << idx << " (" << print_name << ", " << op_type
+      LOG(ERROR) << "[C2DEBUG] Operator #" << idx << " (" << print_name << ", " << op_type
                 << ") " << time_per_op[idx] / main_runs << " ms/iter"
                 << flops_str.str();
       ++idx;
