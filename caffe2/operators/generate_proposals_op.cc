@@ -275,6 +275,22 @@ bool GenerateProposalsOp<CPUContext>::RunOnDevice() {
     cur_roi_probs.col(0).setConstant(0);
   }
   LOG(ERROR) << "[C2DEBUG] out_rois(0): " << out_rois->dim(0) << " post_nms_top_N " << rpn_post_nms_topN_;
+  if (out_rois->dim(0) == 0) {
+    int cur_start_idx = out_rois->dim(0);
+    auto csz = 1;
+    out_rois->Extend(csz, 50, &context_);
+    out_rois_probs->Extend(csz, 50, &context_);
+    Eigen::Map<ERArrXXf> cur_rois(
+        out_rois->mutable_data<float>(),
+        csz,
+        5);
+    for (int i = 0; i < roi_col_count; ++i) {
+      cur_rois.col(i).setConstant(0);
+    }
+    Eigen::Map<EArrXf> cur_roi_probs(
+                                     out_rois_probs->mutable_data<float>() + cur_start_idx, csz);
+    cur_roi_probs.col(0).setConstant(0);
+  }
   return true;
 }
 

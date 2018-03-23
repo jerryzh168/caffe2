@@ -89,9 +89,7 @@ bool GLConvOp<T>::RunOnDevice() {
     filter_->lazy_allocate(filterblob, second_run_, second_run_);
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
     second_run_ = false;
-    if (Y->get_underlying() != X_->get_underlying()) {
-      Y->allocate();
-    }
+    Y->allocate();
     conv_.run();
   } else {
     LOG(ERROR) << "[C2DEBUG] third pass+ X_:" << X_->dims();
@@ -105,13 +103,13 @@ bool GLConvOp<T>::RunOnDevice() {
     // LOG(ERROR) << "[C2DEBUG] 2";
     // X_->get_underlying()->info()->set_tensor_shape(shape);
     TensorCPU fakeX;
-    LOG(ERROR) << "[C2DEBUG] 3";
+    LOG(ERROR) << "[C2DEBUG] Conv 3";
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
-    LOG(ERROR) << "[C2DEBUG] 4";
+    LOG(ERROR) << "[C2DEBUG] Conv 4";
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
     LOG(ERROR) << "[C2DEBUG] before resize";
-    Y->ResizeAndRetain(fakeY);
+    Y->ResizeLike(fakeY);
     LOG(ERROR) << "[C2DEBUG] X dims " << X_->dims();
     LOG(ERROR) << "[C2DEBUG] Y dims " << Y->dims();
     LOG(ERROR) << "[C2DEBUG] conv reconfigure N:" << X_->dims()[0];

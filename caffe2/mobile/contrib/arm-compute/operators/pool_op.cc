@@ -78,15 +78,35 @@ bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNCHW() {
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
+  } else if (second_run_) {
+    X_->lazy_allocate(Xblob, second_run_, true);
+    second_run_ = false;
+    Y->allocate();
+    pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (second_run_) {
-      second_run_ = false;
-      Y->allocate();
+    if (global_pooling_) {
+      vector<TIndex> output_dims = {N, channels, 1, 1};
+      Y->Resize(output_dims);
+    } else {
+      vector<TIndex> output_dims = {N, channels, 0, 0};
+      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
+      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
+      Y->Resize(output_dims);
+    }
+    if (global_pooling_) {
+      arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG);
+      pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
+    } else {
+      arm_compute::PadStrideInfo ps_info(stride_w(), stride_h(), pad_l(), pad_r(),
+                                         pad_t(), pad_b(),
+                                         arm_compute::DimensionRoundingType::FLOOR);
+      arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG, kernel_h(),
+                                         ps_info);
+      pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
     pooling_layer_.run();
   }
-
   return true;
 }
 
@@ -131,11 +151,33 @@ template <> bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNCHW() {
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
+  } else if (second_run_) {
+    X_->lazy_allocate(Xblob, second_run_, true);
+    second_run_ = false;
+    Y->allocate();
+    pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (second_run_) {
-      second_run_ = false;
-      Y->allocate();
+    if (global_pooling_) {
+      vector<TIndex> output_dims = {N, channels, 1, 1};
+      Y->Resize(output_dims);
+    } else {
+      vector<int> output_dims = {1, 0, 0, 0};
+      output_dims[1] = channels;
+      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
+      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
+      Y->Resize(output_dims);
+    }
+    if (global_pooling_) {
+      arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX);
+      pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
+    } else {
+      arm_compute::PadStrideInfo ps_info(stride_w(), stride_h(), pad_l(), pad_r(),
+                                         pad_t(), pad_b(),
+                                         arm_compute::DimensionRoundingType::FLOOR);
+      arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX, kernel_h(),
+                                         ps_info);
+      pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
     }
     pooling_layer_.run();
   }

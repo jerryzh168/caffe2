@@ -63,8 +63,8 @@ public:
       } else {
         LOG(ERROR) << "[C2DEBUG] getGLTensor new X_";
         X_raw_ptr = new GLTensor<T>();
+        X_raw_ptr->ResizeLike(Xcpu);
       }
-      X_raw_ptr->ResizeLike(Xcpu);
       deleted_unique_ptr<const GLTensor<T>> X_unique_ptr(
                                                            X_raw_ptr, [](const GLTensor<T> *X) { delete X; });
       return X_unique_ptr;
@@ -129,44 +129,32 @@ public:
   GLTensor() { tensor_ = make_unique<arm_compute::GCTensor>(); }
   ~GLTensor() { tensor_->allocator()->free(); }
 
-  template <typename TensorType> void ResizeLike(TensorType &X, bool allocated = false) {
-    tensor_->allocator()->free();
-    SetDims(X.dims());
-    shape_ = arm_compute::TensorShape();
+  template <typename TensorType> void ResizeLike(TensorType &X) {
+    bool need_allocation = SetDims(X.dims());
     for (int i = 0; i < dims_.size(); i++) {
       shape_.set(dims_.size() - i - 1, dims_[i]);
     }
 
-    if (allocated) {
-      tensor_->info()->set_tensor_shape(shape_);
-    } else {
+    if (need_allocation) {
       tensor_->allocator()->init(
                                  arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+    } else {
+      tensor_->info()->set_tensor_shape(shape_);
     }
-  }
-
-  template <typename TensorType> void ResizeAndRetain(TensorType &X, bool allocated = false)
-  {
-    SetDims(X.dims());
-    shape_ = arm_compute::TensorShape();
-    for (int i = 0; i < dims_.size(); i++) {
-      shape_.set(dims_.size() - i - 1, dims_[i]);
-    }
-    tensor_->info()->set_tensor_shape(shape_);
   }
 
   template <typename... Ts> void Resize(Ts... dim_source) {
-    bool size_changed = SetDims(dim_source...);
-    if (size_changed) {
+    bool need_allocation = SetDims(dim_source...);
+    if (need_allocation) {
       // TODO: Make it type generic
-      // TODO resize currently assumes that initial allocation is large enough
-      int64_t new_size = size_ * sizeof(T);
       tensor_->allocator()->free();
       for (int i = 0; i < dims_.size(); i++) {
         shape_.set(dims_.size() - i - 1, dims_[i]);
       }
       tensor_->allocator()->init(
                                  arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+    } else {
+      tensor_->info()->set_tensor_shape(shape_);
     }
   }
 
@@ -201,7 +189,7 @@ public:
       char *byte_buffer = (char *)buffer;
       LOG(ERROR) << "[C2DEBUG] in fillGLTensor 3";
       auto info = tensor_->info();
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 1";
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 4";
       if (Xcpu.ndim() == 4) {
         auto M = Xcpu.dim32(0);
         auto C = Xcpu.dim32(1);
@@ -300,14 +288,14 @@ private:
       dims_[i] = src[i];
     }
     size_ = new_size;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   bool SetDims() {
     auto old_size = size_;
     dims_.resize(0);
     size_ = 1;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   bool SetDims(const TIndex d0) {
@@ -315,7 +303,7 @@ private:
     dims_.resize(1);
     dims_[0] = d0;
     size_ = d0;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   bool SetDims(const TIndex d0, const TIndex d1) {
@@ -324,7 +312,7 @@ private:
     dims_[0] = d0;
     dims_[1] = d1;
     size_ = d0 * d1;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   bool SetDims(const TIndex d0, const TIndex d1, const TIndex d2) {
@@ -334,7 +322,7 @@ private:
     dims_[1] = d1;
     dims_[2] = d2;
     size_ = d0 * d1 * d2;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   bool SetDims(const TIndex d0, const TIndex d1, const TIndex d2,
@@ -346,7 +334,7 @@ private:
     dims_[2] = d2;
     dims_[3] = d3;
     size_ = d0 * d1 * d2 * d3;
-    return size_ != old_size;
+    return size_ > old_size;
   }
 
   vector<TIndex> dims_;

@@ -82,16 +82,24 @@ bool GLSigmoidOp<T>::RunOnDevice() {
       X_->get_underlying(), Y->get_underlying(),
       arm_compute::ActivationLayerInfo(
           arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC));
+  } else if (second_run_) {
+    X_->lazy_allocate(Xblob, second_run_, true);
+    second_run_ = false;
+    // in place activation, do not need to allocate new memory
+    if (Y->get_underlying() != X_->get_underlying()) {
+      Y->allocate();
+    }
+    sigmoid_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (second_run_) {
-      second_run_ = false;
-      // in place activation, do not need to allocate new memory
-      if (Y->get_underlying() != X_->get_underlying())
-      {
-          Y->allocate();
-      }
+    if (Y->get_underlying() != X_->get_underlying())
+    {
+        Y->ResizeLike(*X_);
     }
+    sigmoid_layer_.configure(
+      X_->get_underlying(), Y->get_underlying(),
+      arm_compute::ActivationLayerInfo(
+          arm_compute::ActivationLayerInfo::ActivationFunction::LOGISTIC));
     sigmoid_layer_.run();
   }
 
