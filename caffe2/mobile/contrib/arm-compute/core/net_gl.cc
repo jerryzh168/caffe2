@@ -79,6 +79,10 @@ bool GLNet::Run() {
       LOG(ERROR) << "[C2DEBUG] configure " << op->debug_def().type();
       op->Run();
     }
+    for (auto& op: operators_) {
+      LOG(ERROR) << "[C2DEBUG] second run " << op->debug_def().type();
+      op->Run();
+    }
   }
   VLOG(1) << "Running net " << name_;
 
@@ -94,7 +98,7 @@ bool GLNet::Run() {
   }
   int i = 0;
   for (auto& op : operators_) {
-    //LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
+    LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
     ++i;
     bool res = op->Run();
     if (!res) {

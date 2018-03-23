@@ -28,16 +28,30 @@ bool GLReluOp<T>::RunOnDevice() {
         arm_compute::ActivationLayerInfo(
           arm_compute::ActivationLayerInfo::ActivationFunction::RELU));
 
+  } else if (second_run_) {
+    X_->lazy_allocate(Xblob, second_run_, true);
+    second_run_ = false;
+    // in place activation, do not need to allocate new memory
+    if (Y->get_underlying() != X_->get_underlying()) {
+        Y->allocate();
+    }
+    relu_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (second_run_) {
-      second_run_ = false;
-      // in place activation, do not need to allocate new memory
-      if (Y->get_underlying() != X_->get_underlying())
-      {
-          Y->allocate();
-      }
+    arm_compute::TensorShape shape;
+    LOG(ERROR) << "[C2DEBUG] relu Xdims: " << X_->dims();
+    for (int i = 0; i < X_->dims().size(); i++) {
+      shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
     }
+    X_->get_underlying()->info()->set_tensor_shape(shape);
+    if (Y->get_underlying() != X_->get_underlying())
+    {
+        Y->ResizeLike(*X_);
+    }
+    relu_layer_.configure(
+        X_->get_underlying(), Y->get_underlying(),
+        arm_compute::ActivationLayerInfo(
+          arm_compute::ActivationLayerInfo::ActivationFunction::RELU));
     relu_layer_.run();
   }
 

@@ -33,9 +33,8 @@ bool GLConvOp<T>::RunOnDevice() {
   auto *Xblob = OperatorBase::Inputs()[0];
   auto *filterblob = OperatorBase::Inputs()[1];
   auto *biasblob = OperatorBase::Inputs()[2];
-
+  X_ = GLContext::getGLTensor<T>(Xblob, X_.release());
   if (first_run_) {
-    X_ = GLContext::getGLTensor<T>(Xblob);
     filter_ = GLContext::getGLTensor<T>(filterblob);
     bias_ = GLContext::getGLTensor<T>(biasblob);
   }
@@ -83,28 +82,36 @@ bool GLConvOp<T>::RunOnDevice() {
         Y->get_underlying(),
         arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
 
-  } else {
+  } else if (second_run_) {
     // Always attempt to copy the CPU to GPU on input
+    LOG(ERROR) << "[C2DEBUG] second pass+ X_:" << X_->dims();
     X_->lazy_allocate(Xblob, second_run_, true);
     filter_->lazy_allocate(filterblob, second_run_, second_run_);
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
-    if (second_run_) {
-      second_run_ = false;
-      if (Y->get_underlying() != X_->get_underlying()) {
-        Y->allocate();
-      }
+    second_run_ = false;
+    if (Y->get_underlying() != X_->get_underlying()) {
+      Y->allocate();
     }
+    conv_.run();
+  } else {
+    LOG(ERROR) << "[C2DEBUG] third pass+ X_:" << X_->dims();
     // hack
-    arm_compute::TensorShape shape;
-    for (int i = 0; i < X_->dims().size(); i++) {
-      shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
-    }
-    X_->get_underlying()->info()->set_tensor_shape(shape);
+    X_->lazy_allocate(Xblob, second_run_, true);
+    // LOG(ERROR) << "[C2DEBUG] 1";
+    // arm_compute::TensorShape shape;
+    // for (int i = 0; i < X_->dims().size(); i++) {
+    //   shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
+    // }
+    // LOG(ERROR) << "[C2DEBUG] 2";
+    // X_->get_underlying()->info()->set_tensor_shape(shape);
     TensorCPU fakeX;
+    LOG(ERROR) << "[C2DEBUG] 3";
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
+    LOG(ERROR) << "[C2DEBUG] 4";
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
-    Y->ResizeLike(fakeY);
+    LOG(ERROR) << "[C2DEBUG] before resize";
+    Y->ResizeAndRetain(fakeY);
     LOG(ERROR) << "[C2DEBUG] X dims " << X_->dims();
     LOG(ERROR) << "[C2DEBUG] Y dims " << Y->dims();
     LOG(ERROR) << "[C2DEBUG] conv reconfigure N:" << X_->dims()[0];
@@ -115,7 +122,7 @@ bool GLConvOp<T>::RunOnDevice() {
     LOG(ERROR) << "[C2DEBUG] after re-configure";
     conv_.run();
     LOG(ERROR) << "[C2DEBUG] after run";
-  }
+ }
 
   return true;
 }

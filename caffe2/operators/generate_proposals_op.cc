@@ -274,7 +274,7 @@ bool GenerateProposalsOp<CPUContext>::RunOnDevice() {
                                      out_rois_probs->mutable_data<float>() + cur_start_idx, csz);
     cur_roi_probs.col(0).setConstant(0);
   }
-  //LOG(ERROR) << "[C2DEBUG] out_rois(0): " << out_rois->dim(0) << " post_nms_top_N " << rpn_post_nms_topN_;
+  LOG(ERROR) << "[C2DEBUG] out_rois(0): " << out_rois->dim(0) << " post_nms_top_N " << rpn_post_nms_topN_;
   return true;
 }
 

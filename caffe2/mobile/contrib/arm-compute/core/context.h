@@ -51,14 +51,22 @@ public:
   using deleted_unique_ptr = std::unique_ptr<T, std::function<void(T *)>>;
 
   template <typename T>
-  static deleted_unique_ptr<const GLTensor<T>> getGLTensor(const Blob *b) {
+    static deleted_unique_ptr<const GLTensor<T>> getGLTensor(const Blob *b, const GLTensor<T>* X_old = nullptr) {
     if (b->IsType<TensorCPU>()) {
       auto &Xcpu = b->Get<TensorCPU>();
       GLTensor<T> *X_raw_ptr;
-      X_raw_ptr = new GLTensor<T>();
+      if (X_old) {
+        LOG(ERROR) << "[C2DEBUG] getGLTensor X_old";
+        X_raw_ptr = const_cast<GLTensor<T> *>(X_old);
+        X_raw_ptr->ResizeLike(Xcpu);
+        LOG(ERROR) << "[C2DEBUG] dims after resize " << X_raw_ptr->dims();
+      } else {
+        LOG(ERROR) << "[C2DEBUG] getGLTensor new X_";
+        X_raw_ptr = new GLTensor<T>();
+      }
       X_raw_ptr->ResizeLike(Xcpu);
       deleted_unique_ptr<const GLTensor<T>> X_unique_ptr(
-          X_raw_ptr, [](const GLTensor<T> *X) { delete X; });
+                                                           X_raw_ptr, [](const GLTensor<T> *X) { delete X; });
       return X_unique_ptr;
     }
     const GLTensor<T> *X_raw_ptr;
@@ -117,13 +125,11 @@ public:
 };
 
 template <typename T> class GLTensor {
-private:
-  bool allocated_ = false;
 public:
   GLTensor() { tensor_ = make_unique<arm_compute::GCTensor>(); }
   ~GLTensor() { tensor_->allocator()->free(); }
 
-  template <typename TensorType> void ResizeLike(TensorType &X) {
+  template <typename TensorType> void ResizeLike(TensorType &X, bool allocated = false) {
     tensor_->allocator()->free();
     SetDims(X.dims());
     shape_ = arm_compute::TensorShape();
@@ -131,21 +137,36 @@ public:
       shape_.set(dims_.size() - i - 1, dims_[i]);
     }
 
-    tensor_->allocator()->init(
-        arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+    if (allocated) {
+      tensor_->info()->set_tensor_shape(shape_);
+    } else {
+      tensor_->allocator()->init(
+                                 arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+    }
+  }
+
+  template <typename TensorType> void ResizeAndRetain(TensorType &X, bool allocated = false)
+  {
+    SetDims(X.dims());
+    shape_ = arm_compute::TensorShape();
+    for (int i = 0; i < dims_.size(); i++) {
+      shape_.set(dims_.size() - i - 1, dims_[i]);
+    }
+    tensor_->info()->set_tensor_shape(shape_);
   }
 
   template <typename... Ts> void Resize(Ts... dim_source) {
     bool size_changed = SetDims(dim_source...);
     if (size_changed) {
       // TODO: Make it type generic
+      // TODO resize currently assumes that initial allocation is large enough
       int64_t new_size = size_ * sizeof(T);
       tensor_->allocator()->free();
       for (int i = 0; i < dims_.size(); i++) {
         shape_.set(dims_.size() - i - 1, dims_[i]);
       }
       tensor_->allocator()->init(
-          arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+                                 arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
     }
   }
 
@@ -172,16 +193,21 @@ public:
 
   void fillGLTensor(const Blob *b) const {
     if (b->IsType<TensorCPU>()) {
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 0";
       auto &Xcpu = b->Get<TensorCPU>();
-
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 1 " << size_;
       T *buffer = map();
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 2";
       char *byte_buffer = (char *)buffer;
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 3";
       auto info = tensor_->info();
+      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 1";
       if (Xcpu.ndim() == 4) {
         auto M = Xcpu.dim32(0);
         auto C = Xcpu.dim32(1);
         auto H = Xcpu.dim32(2);
         auto W = Xcpu.dim32(3);
+        LOG(ERROR) << "[C2DEBUG] MCHW" << M << " " << C << " " << H << " " << W;
         for (auto m = 0; m < M; ++m) {
           for (auto c = 0; c < C; ++c) {
             for (auto h = 0; h < H; ++h) {
