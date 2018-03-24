@@ -27,9 +27,7 @@ namespace caffe2 {
     PopulateCPUBlob(ws.get(), true, input_name, input_dims);
     LOG(ERROR) << "[C2DEBUG] rewriting OpenGL net";
     tryConvertToOpenGL(predict_net_def, &predict_net_def_gpu, false, cpu_ops);
-    LOG(ERROR) << "[C2DEBUG] rewrite successful";
     // change the name of last op
-    LOG(ERROR) << "[C2DEBUG] size:" << predict_net_def.op().size();
     auto index = predict_net_def_gpu.op().size() - 1;
     LOG(ERROR) << "[C2DEBUG] index:" << index;
     auto last_blob = predict_net_def_gpu.op()[index].output()[0];

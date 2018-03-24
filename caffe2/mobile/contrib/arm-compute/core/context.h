@@ -56,12 +56,9 @@ public:
       auto &Xcpu = b->Get<TensorCPU>();
       GLTensor<T> *X_raw_ptr;
       if (X_old) {
-        LOG(ERROR) << "[C2DEBUG] getGLTensor X_old";
         X_raw_ptr = const_cast<GLTensor<T> *>(X_old);
         X_raw_ptr->ResizeLike(Xcpu);
-        LOG(ERROR) << "[C2DEBUG] dims after resize " << X_raw_ptr->dims();
       } else {
-        LOG(ERROR) << "[C2DEBUG] getGLTensor new X_";
         X_raw_ptr = new GLTensor<T>();
         X_raw_ptr->ResizeLike(Xcpu);
       }
@@ -181,65 +178,41 @@ public:
 
   void fillGLTensor(const Blob *b) const {
     if (b->IsType<TensorCPU>()) {
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 0";
       auto &Xcpu = b->Get<TensorCPU>();
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 1 " << size_;
+      //LOG(ERROR) << "[C2DEBUG] fillGLTensor dims: " << Xcpu.dims();
       T *buffer = map();
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 2";
       char *byte_buffer = (char *)buffer;
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 3";
       auto info = tensor_->info();
-      LOG(ERROR) << "[C2DEBUG] in fillGLTensor 4";
+      arm_compute::Window it_window;
+      it_window.use_tensor_dimensions(info->tensor_shape(), /* first_dimension =*/arm_compute::Window::DimY); // Iterate through the rows (not each element)
+      arm_compute::Iterator it(get_underlying(), it_window);
       if (Xcpu.ndim() == 4) {
-        auto M = Xcpu.dim32(0);
-        auto C = Xcpu.dim32(1);
-        auto H = Xcpu.dim32(2);
-        auto W = Xcpu.dim32(3);
-        LOG(ERROR) << "[C2DEBUG] MCHW" << M << " " << C << " " << H << " " << W;
-        for (auto m = 0; m < M; ++m) {
-          for (auto c = 0; c < C; ++c) {
-            for (auto h = 0; h < H; ++h) {
-              for (auto w = 0; w < W; ++w) {
-                T *b = (T *)(&byte_buffer[info->offset_element_in_bytes(
-                    arm_compute::Coordinates(w, h, c, m))]);
-                // require cpu input blob to be float
-                *b = T(Xcpu.data<float>()[((m * C + c) * H + h) * W + w]);
-              }
-            }
-          }
+        auto N = Xcpu.dim32(0);
+        for (int n = 0; n < N; ++n) {
+          auto C = Xcpu.dim32(1);
+          auto H = Xcpu.dim32(2);
+          auto W = Xcpu.dim32(3);
+          arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
+              memcpy(it.ptr(), Xcpu.data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W, W * sizeof(float));
+            },
+            it);
         }
       } else if (Xcpu.ndim() == 3) {
-        auto C = Xcpu.dim32(0);
         auto H = Xcpu.dim32(1);
         auto W = Xcpu.dim32(2);
-        for (auto c = 0; c < C; ++c) {
-          for (auto h = 0; h < H; ++h) {
-            for (auto w = 0; w < W; ++w) {
-              T *b = (T *)(&byte_buffer[info->offset_element_in_bytes(
-                  arm_compute::Coordinates(w, h, c))]);
-              // require cpu input blob to be float
-              *b = T(Xcpu.data<float>()[(c * H + h) * W + w]);
-            }
-          }
-        }
+        arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
+            memcpy(it.ptr(), Xcpu.data<float>() + id.z() * (W * H) + id.y() * W, W * sizeof(float));
+        },
+        it);
       } else if (Xcpu.ndim() == 2) {
-        auto H = Xcpu.dim32(0);
         auto W = Xcpu.dim32(1);
-        for (auto h = 0; h < H; ++h) {
-          for (auto w = 0; w < W; ++w) {
-            T *b = (T *)(&byte_buffer[info->offset_element_in_bytes(
-                arm_compute::Coordinates(w, h))]);
-            // require cpu input blob to be float
-            *b = T(Xcpu.data<float>()[h * W + w]);
-          }
-        }
+        arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
+            memcpy(it.ptr(), Xcpu.data<float>() + id.y() * W, W * sizeof(float));
+        },
+        it);
       } else {
         auto size = Xcpu.dim32(0);
-        for (auto i = 0; i < size; ++i) {
-          T *b = (T *)(&byte_buffer[info->offset_element_in_bytes(arm_compute::Coordinates(i))]);
-          // require cpu input blob to be float
-          *b = T(Xcpu.data<float>()[i]);
-        }
+        memcpy(it.ptr(), Xcpu.data<float>(), size);
       }
       unmap();
     }

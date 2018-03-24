@@ -75,12 +75,14 @@ bool GLNet::Run() {
   StartAllObservers();
   if (first_run_) {
     first_run_ = false;
+    LOG(ERROR) << "[C2DEBUG] first run";
     for (auto& op: operators_) {
-      LOG(ERROR) << "[C2DEBUG] configure " << op->debug_def().type();
+      //LOG(ERROR) << "[C2DEBUG] configure " << op->debug_def().type();
       op->Run();
     }
+    LOG(ERROR) << "[C2DEBUG] second run";
     for (auto& op: operators_) {
-      LOG(ERROR) << "[C2DEBUG] second run " << op->debug_def().type();
+      //LOG(ERROR) << "[C2DEBUG] second run " << op->debug_def().type();
       op->Run();
     }
   }
@@ -97,8 +99,9 @@ bool GLNet::Run() {
     }
   }
   int i = 0;
+  LOG(ERROR) << "[C2DEBUG] In Run";
   for (auto& op : operators_) {
-    LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
+    //LOG(ERROR) << "[C2DEBUG] running " << op->type() << " " << i;
     ++i;
     bool res = op->Run();
     if (!res) {

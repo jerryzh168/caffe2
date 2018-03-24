@@ -277,10 +277,11 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
   if (R.size() == 0) {
     // Handle empty rois
     if (order_ == StorageOrder::NCHW) {
-      Y->Resize(0, X.dim32(1), pooled_height_, pooled_width_);
+      Y->Resize(1, X.dim32(1), pooled_height_, pooled_width_);
     } else if (order_ == StorageOrder::NHWC) {
-      Y->Resize(0, pooled_height_, pooled_width_, X.dim32(3));
+      Y->Resize(1, pooled_height_, pooled_width_, X.dim32(3));
     }
+    //LOG(ERROR) << "[C2DEBUG] RoIAlign size == 0";
     // The following mutable_data calls are needed to allocate the tensors
     Y->mutable_data<float>();
     return true;

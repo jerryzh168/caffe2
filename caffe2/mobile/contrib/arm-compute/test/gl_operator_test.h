@@ -76,10 +76,11 @@ void compareNetResult4D(Workspace& ws,
                         string cpu_blob="ref_Y",
                         string gpu_blob="gpu_Y",
                         double tol=0.05) {
-  bool cpu_success = ws.RunNetOnce(cpu_net);
-  LOG(ERROR) << "[C2DEBUG] after cpu net";
+  LOG(ERROR) << "[C2DEBUG] running gpu net";
   bool gpu_success = ws.RunNetOnce(gpu_net);
   LOG(ERROR) << "[C2DEBUG] after gpu net";
+  bool cpu_success = ws.RunNetOnce(cpu_net);
+  LOG(ERROR) << "[C2DEBUG] after cpu net";
 
   if (!gpu_success || !cpu_success) {
     LOG(ERROR) << "[C2DEBUG] cpu or gpu net failed.";

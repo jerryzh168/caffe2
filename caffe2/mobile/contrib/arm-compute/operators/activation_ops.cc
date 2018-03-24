@@ -39,7 +39,6 @@ bool GLReluOp<T>::RunOnDevice() {
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
     arm_compute::TensorShape shape;
-    LOG(ERROR) << "[C2DEBUG] relu Xdims: " << X_->dims();
     for (int i = 0; i < X_->dims().size(); i++) {
       shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
     }

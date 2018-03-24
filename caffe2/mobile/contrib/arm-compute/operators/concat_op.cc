@@ -87,7 +87,6 @@ bool GLConcatOp<T>::RunOnDevice() {
     for (int i = 0; i < inputs_.size(); ++i) {
       inputsGC.push_back(inputs_[i]->get_underlying());
     }
-    LOG(ERROR) << "[C2DEBUG] Concat Y->dims " << Y->dims();
     concat_layer_.configure(inputsGC, Y->get_underlying());
     concat_layer_.run();
   }

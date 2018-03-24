@@ -83,8 +83,6 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
   CAFFE_ENFORCE(analysis.inUsages[inputBlob][0] == (std::vector<size_t>{0}));
   // Enforce that the external_output(0) blob is produced by the last operator in this sequence.
   const auto& outputBlob = def.external_output(0);
-  CAFFE_ENFORCE(analysis.ssa.back().outVersions.find(outputBlob) !=
-                analysis.ssa.back().outVersions.end());
   const auto& outputBlobVersion = analysis.ssa.back().outVersions[outputBlob];
   // This should hold true by definition of the SSA analysis.
   CAFFE_ENFORCE(analysis.inUsages[outputBlob].find(outputBlobVersion) ==
@@ -96,9 +94,10 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
 
   std::unordered_map<std::string, std::set<size_t>> cpu_blobs, gpu_blobs;
   cpu_blobs[def.external_input(0)].insert(0);
-
+  LOG(ERROR) << "[C2DEBUG] def.op_size(): " << def.op_size();
   for (auto i = 0; i < def.op_size(); i++) {
     const auto& currentOp = def.op(i);
+    LOG(ERROR) << "[C2DEBUG] adding " << currentOp.type();
     if (cpuOp.count(currentOp.type()) > 0) {
       // CPU Op
       // insert copyFromOpenGLOp
@@ -244,13 +243,13 @@ NetDef rewritePredictNetForOpenGL(const NetDef& predictNet, bool runFusion, std:
   CAFFE_ENFORCE_GE(predictNet.op_size(), 1);
   NetDef net;
   net.CopyFrom(predictNet);
-  LOG(ERROR) << "[C2DEBUG] net size" << net.op().size();
+  LOG(ERROR) << "[C2DEBUG] net size " << net.op().size();
   // if (runFusion) {
   //   net = runOpenGLFusion(net, openGLOps);
   // }
-
+  LOG(ERROR) << "[C2DEBUG] failed???";
   net = insertInputOutputCopyOps(net, cpuOps);
-  LOG(ERROR) << "[C2DEBUG] net size" << net.op().size();
+  LOG(ERROR) << "[C2DEBUG] net size " << net.op().size();
   net.set_type("opengl");
 
   for (auto i = 0; i < net.op().size(); ++i) {
@@ -260,6 +259,7 @@ NetDef rewritePredictNetForOpenGL(const NetDef& predictNet, bool runFusion, std:
     }
   }
 
+  LOG(ERROR) << "[C2DEBUG] returning net size " << net.op().size();
   return net;
 }
 
@@ -269,6 +269,7 @@ bool tryConvertToOpenGL(const NetDef& predictNet,
                         std::unordered_set<std::string> cpuOps) {
   try {
     // Throws if unsupported operators are found.
+    LOG(ERROR) << "[C2DEBUG] in tryConvertToOpenGL";
     *glPredictNet = rewritePredictNetForOpenGL(predictNet, runFusion, cpuOps);
     dumpDefForOpenGL(*glPredictNet);
     // Throws if unsupported parameters are found.
