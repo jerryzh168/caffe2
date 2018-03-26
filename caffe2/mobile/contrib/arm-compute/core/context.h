@@ -193,7 +193,7 @@ public:
           auto H = Xcpu.dim32(2);
           auto W = Xcpu.dim32(3);
           arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-              memcpy(it.ptr(), Xcpu.data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W, W * sizeof(float));
+              std::copy_n(Xcpu.data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W, W, it.ptr());
             },
             it);
         }
@@ -201,18 +201,18 @@ public:
         auto H = Xcpu.dim32(1);
         auto W = Xcpu.dim32(2);
         arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-            memcpy(it.ptr(), Xcpu.data<float>() + id.z() * (W * H) + id.y() * W, W * sizeof(float));
+            std::copy_n(Xcpu.data<float>() + id.z() * (W * H) + id.y() * W, W, it.ptr());
         },
         it);
       } else if (Xcpu.ndim() == 2) {
         auto W = Xcpu.dim32(1);
         arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-            memcpy(it.ptr(), Xcpu.data<float>() + id.y() * W, W * sizeof(float));
+            std::copy_n(Xcpu.data<float>() + id.y() * W, W, it.ptr());
         },
         it);
       } else {
         auto size = Xcpu.dim32(0);
-        memcpy(it.ptr(), Xcpu.data<float>(), size);
+        std::copy_n(Xcpu.data<float>(), size, it.ptr());
       }
       unmap();
     }
@@ -320,11 +320,14 @@ template<typename T = half>
 void getTensorCPU(const GLTensor<T>& g_, TensorCPU& g) {
   g.Resize(g_.dims());
   T *buffer = g_.map();
-
-  for (auto i = 0; i < g.size(); ++i) {
-    auto tmp = buffer[i];
-    g.mutable_data<float>()[i] = tmp;
-  }
+  char *byte_buffer = (char *)buffer;
+  auto tensor = g_.get_underlying();
+  auto info = tensor->info();
+  arm_compute::Window it_window;
+  it_window.use_tensor_dimensions(info->tensor_shape(), /* first_dimension =*/arm_compute::Window::DimY); // Iterate through the rows (not each element)
+  arm_compute::Iterator it(tensor, it_window);
+  g.mutable_data<float>();
+  std::copy_n(g.mutable_data<float>(), g.size(), it.ptr());
   g_.unmap();
 }
 
