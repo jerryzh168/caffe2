@@ -43,7 +43,7 @@ bool GLConvOp<T>::RunOnDevice() {
     OperatorBase::Outputs()[0]->template GetMutable<GLTensor<T>>();
 
   const int N = X_->dim32(0), H = X_->dim32(2), W = X_->dim32(3), C = X_->dim32(1);
-  LOG(ERROR) << "[C2DEBUG] Conv " << N << " " << H << " " << W << " " << C;
+  //LOG(ERROR) << "[C2DEBUG] Conv " << N << " " << H << " " << W << " " << C;
   CAFFE_ENFORCE_EQ(kernel_.size(), 2,
                    "Only 2d convolution is supported with ARM compute backend");
 
@@ -51,7 +51,6 @@ bool GLConvOp<T>::RunOnDevice() {
   const int M = filter_->dim32(0);
   CAFFE_ENFORCE(filter_->dim32(2) == kernel_h());
   CAFFE_ENFORCE(filter_->dim32(3) == kernel_w());
-  LOG(ERROR) << "[C2DEBUG] " << filter_->dim32(1) << " " << C;
   CAFFE_ENFORCE(filter_->dim32(1) == C);
 
   if (first_run_) {
@@ -94,7 +93,7 @@ bool GLConvOp<T>::RunOnDevice() {
     TensorCPU fakeY;
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
     Y->ResizeLike(fakeY);
-    LOG(ERROR) << "Conv [C2DEBUG] Y->dims " << Y->dims();
+    //LOG(ERROR) << "Conv [C2DEBUG] Y->dims " << Y->dims();
     Y->allocate();
     conv_.run();
   } else {

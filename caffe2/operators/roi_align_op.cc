@@ -273,7 +273,7 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
   auto& X = Input(0); // Input data to pool, NCHW
   auto& R = Input(1); // RoIs
   auto* Y = Output(0); // RoI pooled data
-  LOG(ERROR) << "[C2DEBUG] ROI Align: " << R.dim32(0);
+  // [TODO] change
   if (R.size() == 0) {
     // Handle empty rois
     if (order_ == StorageOrder::NCHW) {
