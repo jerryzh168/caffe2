@@ -1,24 +1,10 @@
-/**
- * Copyright (c) 2016-present, Facebook, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 #include "caffe2/core/logging.h"
 #include "caffe2/core/operator.h"
 #include "caffe2/onnx/backend.h"
 #include "caffe2/onnx/device.h"
 #include "caffe2/onnx/helper.h"
+#include "caffe2/utils/map_utils.h"
+#include "caffe2/utils/proto_utils.h"
 
 #if !CAFFE2_MOBILE
 #include "onnx/checker.h"
@@ -72,18 +58,6 @@ bool IsOperator(const std::string& op_type) {
   static std::set<std::string>* ops_ =
       new std::set<std::string>(caffe2::GetRegisteredOperators());
   return ops_->count(caffe2::OpRegistryKey(op_type, "DEFAULT"));
-}
-
-// TODO We probably should have only one copy of this function (copied from
-// pybind_state.cc)
-bool ParseProtobufFromLargeString(
-    const std::string& str,
-    ::google::protobuf::Message* proto) {
-  ::google::protobuf::io::ArrayInputStream input_stream(str.data(), str.size());
-  ::google::protobuf::io::CodedInputStream coded_stream(&input_stream);
-  // Set PlanDef message size limit to 1G.
-  coded_stream.SetTotalBytesLimit(1024LL << 20, 512LL << 20);
-  return proto->ParseFromCodedStream(&coded_stream);
 }
 
 caffe2::DeviceOption GetDeviceOption(const Device& onnx_device) {
@@ -866,7 +840,7 @@ Caffe2Ops Caffe2Backend::CommonOnnxNodeToCaffe2Ops(
   c2_op->set_name(node.name());
 
   const auto onnx_op_type = node.op_type();
-  auto broken_version = LookUpWithDefault(
+  auto broken_version = caffe2::get_default(
       get_broken_operators(), onnx_op_type, std::numeric_limits<int>::max());
   if (broken_version <= opset_version) {
     CAFFE_THROW(
@@ -878,7 +852,7 @@ Caffe2Ops Caffe2Backend::CommonOnnxNodeToCaffe2Ops(
         broken_version);
   }
   c2_op->set_type(
-      LookUpWithDefault(get_renamed_operators(), onnx_op_type, onnx_op_type));
+      caffe2::get_default(get_renamed_operators(), onnx_op_type, onnx_op_type));
   if (!IsOperator(c2_op->type())) {
     CAFFE_THROW(
         "Don't know how to translate op ", onnx_op_type);
@@ -909,7 +883,7 @@ Caffe2Ops Caffe2Backend::ConvertNode(
     int opset_version) {
   ::google::protobuf::RepeatedPtrField<NodeProto> nodes;
   auto* n = nodes.Add();
-  ParseProtobufFromLargeString(node_str, n);
+  ParseProtoFromLargeString(node_str, n);
   ModelProto init_model;
   ModelProto pred_model;
   OnnxNode onnx_node = OnnxNode(nodes.Get(0));
@@ -1023,7 +997,7 @@ Caffe2BackendRep* Caffe2Backend::Prepare(
     const std::vector<Caffe2Ops>& extras) {
   Caffe2BackendRep* rep = new Caffe2BackendRep();
   ModelProto onnx_model;
-  ParseProtobufFromLargeString(onnx_model_str, &onnx_model);
+  ParseProtoFromLargeString(onnx_model_str, &onnx_model);
 
 #if !CAFFE2_MOBILE
   ::ONNX_NAMESPACE::checker::check_model(onnx_model);
