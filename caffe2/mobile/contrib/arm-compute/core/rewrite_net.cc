@@ -97,7 +97,6 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
   LOG(ERROR) << "[C2DEBUG] def.op_size(): " << def.op_size();
   for (auto i = 0; i < def.op_size(); i++) {
     const auto& currentOp = def.op(i);
-    LOG(ERROR) << "[C2DEBUG] adding " << currentOp.type();
     if (cpuOp.count(currentOp.type()) > 0) {
       // CPU Op
       // insert copyFromOpenGLOp

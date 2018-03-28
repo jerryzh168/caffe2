@@ -80,7 +80,13 @@ bool BBoxTransformOp<float, CPUContext>::RunOnDevice() {
   CAFFE_ENFORCE_EQ(roi_in.ndim(), 2);
   CAFFE_ENFORCE(roi_in.dim32(1) == 4 || roi_in.dim32(1) == 5);
 
-  CAFFE_ENFORCE_EQ(delta_in.ndim(), 2);
+  if (delta_in.ndim() > 2) {
+    for (int i = 2; i < delta_in.ndim(); ++i) {
+      CAFFE_ENFORCE_EQ(delta_in.dim32(i), 1);
+    }
+  } else {
+    CAFFE_ENFORCE_EQ(delta_in.ndim(), 2);
+  }
   CAFFE_ENFORCE_EQ(delta_in.dim32(0), N);
   CAFFE_ENFORCE_EQ(delta_in.dim32(1) % 4, 0);
   const int num_classes = delta_in.dim32(1) / 4;

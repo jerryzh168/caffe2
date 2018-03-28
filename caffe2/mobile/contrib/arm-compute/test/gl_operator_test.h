@@ -38,7 +38,7 @@ void PopulateCPUBlob(Workspace *ws, bool random, std::string name,
   }
 }
 
-template<typename T = half>
+template<typename T = DataType>
 void compareNetResult(Workspace& ws,
                       NetDef& cpu_net, NetDef& gpu_net,
                       string cpu_blob="ref_Y",
@@ -70,7 +70,7 @@ void compareNetResult(Workspace& ws,
   }
 }
 
-template<typename T = half>
+template<typename T = DataType>
 void compareNetResult4D(Workspace& ws,
                         NetDef& cpu_net, NetDef& gpu_net,
                         string cpu_blob="ref_Y",

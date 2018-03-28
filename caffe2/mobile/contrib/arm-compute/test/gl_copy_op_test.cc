@@ -8,9 +8,9 @@ TEST(OPENGLOperatorTest, CopyFromGL) {
       {1},
       {1, 2},
       {1, 2, 3},
-      {1, 2, 3, 4},
-      {4, 3, 2, 1},
-      {4, 9, 8, 13},
+      // {1, 2, 3, 4},
+      // {4, 3, 2, 1},
+      // {4, 9, 8, 13},
     }) {
     Workspace ws;
     PopulateCPUBlob(&ws, true, std::string("cpu_X"), dims);

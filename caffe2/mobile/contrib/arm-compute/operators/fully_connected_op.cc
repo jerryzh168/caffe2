@@ -54,11 +54,15 @@ bool GLFullyConnectedOp<T>::RunOnDevice() {
     W_->lazy_allocate(Wblob, second_run_, second_run_);
     B_->lazy_allocate(Bblob, second_run_, second_run_);
     second_run_ = false;
+    Y->Resize(output_dims);
+    LOG(ERROR) << "[C2DEBUG] Y->dims: " << Y->dims();
     Y->allocate();
     fc_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    Y->Resize(output_dims);
+    if(Y->Resize(output_dims)) {
+      Y->allocate();
+    }
     fc_layer_.configure(X_->get_underlying(), W_->get_underlying(),
                      B_->get_underlying(), Y->get_underlying(), true, false);
     fc_layer_.run();

@@ -11,7 +11,7 @@ CAFFE2_DEFINE_int(warmup, 10, "The number of iterations to warm up.");
 CAFFE2_DEFINE_int(iter, 100, "The number of iterations to run.");
 CAFFE2_DEFINE_bool(
     run_individual,
-    false,
+    true,
     "Whether to benchmark individual operators.");
 
 

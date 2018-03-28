@@ -39,11 +39,11 @@ private:
 };
 
 template <>
-bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNCHW() {
+bool GLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
 
   auto *Xblob = OperatorBase::Inputs()[0];
   if (first_run_) {
-    X_ = GLContext::getGLTensor<half>(Xblob);
+    X_ = GLContext::getGLTensor<DataType>(Xblob);
   }
 
   int N = X_->dim32(0);
@@ -51,22 +51,20 @@ bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNCHW() {
   int height = X_->dim32(2);
   int width = X_->dim32(3);
 
-  GLTensor<half> *Y =
-      OperatorBase::Outputs()[0]->template GetMutable<GLTensor<half>>();
+  vector<TIndex> output_dims = {N, channels, 1, 1};
+  if (!global_pooling_) {
+    output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
+    output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
+  }
+
+  GLTensor<DataType> *Y =
+      OperatorBase::Outputs()[0]->template GetMutable<GLTensor<DataType>>();
   if (first_run_) {
     first_run_ = false;
     CAFFE_ENFORCE_EQ(kernel_.size(), 2, "ARM OpenGL only supports 2D pooling");
     CAFFE_ENFORCE_EQ(kernel_h(), kernel_w(),
                      "ARM OpenGL only supports equal kernel size");
-    if (global_pooling_) {
-      vector<TIndex> output_dims = {N, channels, 1, 1};
-      Y->Resize(output_dims);
-    } else {
-      vector<TIndex> output_dims = {N, channels, 0, 0};
-      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
-      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
-      Y->Resize(output_dims);
-    }
+    Y->Resize(output_dims);
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -81,18 +79,13 @@ bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNCHW() {
   } else if (second_run_) {
     X_->lazy_allocate(Xblob, second_run_, true);
     second_run_ = false;
+    Y->Resize(output_dims);
     Y->allocate();
     pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (global_pooling_) {
-      vector<TIndex> output_dims = {N, channels, 1, 1};
-      Y->Resize(output_dims);
-    } else {
-      vector<TIndex> output_dims = {N, channels, 0, 0};
-      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
-      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
-      Y->Resize(output_dims);
+    if (Y->Resize(output_dims)) {
+      Y->allocate();
     }
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG);
@@ -110,11 +103,11 @@ bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNCHW() {
   return true;
 }
 
-template <> bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNCHW() {
+template <> bool GLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
 
   auto *Xblob = OperatorBase::Inputs()[0];
   if (first_run_) {
-    X_ = GLContext::getGLTensor<half>(Xblob);
+    X_ = GLContext::getGLTensor<DataType>(Xblob);
   }
 
   int N = X_->dim32(0);
@@ -122,24 +115,20 @@ template <> bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNCHW() {
   int height = X_->dim32(2);
   int width = X_->dim32(3);
 
-  GLTensor<half> *Y =
-      OperatorBase::Outputs()[0]->template GetMutable<GLTensor<half>>();
+  vector<TIndex> output_dims = {N, channels, 1, 1};
+  if (!global_pooling_) {
+    output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
+    output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
+  }
+  GLTensor<DataType> *Y =
+      OperatorBase::Outputs()[0]->template GetMutable<GLTensor<DataType>>();
 
   if (first_run_) {
     first_run_ = false;
     CAFFE_ENFORCE_EQ(kernel_.size(), 2, "ARM OpenGL only supports 2D pooling");
     CAFFE_ENFORCE_EQ(kernel_h(), kernel_w(),
                      "ARM OpenGL only supports equal kernel size");
-    if (global_pooling_) {
-      vector<TIndex> output_dims = {N, channels, 1, 1};
-      Y->Resize(output_dims);
-    } else {
-      vector<int> output_dims = {1, 0, 0, 0};
-      output_dims[1] = channels;
-      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
-      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
-      Y->Resize(output_dims);
-    }
+    Y->Resize(output_dims);
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -154,19 +143,14 @@ template <> bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNCHW() {
   } else if (second_run_) {
     X_->lazy_allocate(Xblob, second_run_, true);
     second_run_ = false;
+    Y->Resize(output_dims);
+    LOG(ERROR) << "[C2DEBUG] max pool dims: " << Y->dims();
     Y->allocate();
     pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (global_pooling_) {
-      vector<TIndex> output_dims = {N, channels, 1, 1};
-      Y->Resize(output_dims);
-    } else {
-      vector<int> output_dims = {1, 0, 0, 0};
-      output_dims[1] = channels;
-      output_dims[2] = (height + pad_t() + pad_b() - kernel_h()) / stride_h() + 1;
-      output_dims[3] = (width + pad_l() + pad_r() - kernel_w()) / stride_w() + 1;
-      Y->Resize(output_dims);
+    if(Y->Resize(output_dims)) {
+      Y->allocate();
     }
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX);
@@ -186,12 +170,12 @@ template <> bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNCHW() {
 }
 
 template <>
-bool GLAveragePoolOp<half>::RunOnDeviceWithOrderNHWC() {
+bool GLAveragePoolOp<DataType>::RunOnDeviceWithOrderNHWC() {
   return false;
 }
 
 template <>
-bool GLMaxPoolOp<half>::RunOnDeviceWithOrderNHWC() {
+bool GLMaxPoolOp<DataType>::RunOnDeviceWithOrderNHWC() {
   return false;
 }
 

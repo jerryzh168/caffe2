@@ -273,7 +273,7 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
   auto& X = Input(0); // Input data to pool, NCHW
   auto& R = Input(1); // RoIs
   auto* Y = Output(0); // RoI pooled data
-
+  LOG(ERROR) << "[C2DEBUG] ROI Align: " << R.dim32(0);
   if (R.size() == 0) {
     // Handle empty rois
     if (order_ == StorageOrder::NCHW) {
@@ -281,7 +281,7 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
     } else if (order_ == StorageOrder::NHWC) {
       Y->Resize(1, pooled_height_, pooled_width_, X.dim32(3));
     }
-    //LOG(ERROR) << "[C2DEBUG] RoIAlign size == 0";
+    LOG(ERROR) << "[C2DEBUG] RoIAlign size == 0";
     // The following mutable_data calls are needed to allocate the tensors
     Y->mutable_data<float>();
     return true;
@@ -328,6 +328,8 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
         Y->mutable_data<float>(),
         order_);
   }
+
+
 
   return true;
 }

@@ -43,7 +43,7 @@ bool GLConvOp<T>::RunOnDevice() {
     OperatorBase::Outputs()[0]->template GetMutable<GLTensor<T>>();
 
   const int N = X_->dim32(0), H = X_->dim32(2), W = X_->dim32(3), C = X_->dim32(1);
-
+  LOG(ERROR) << "[C2DEBUG] Conv " << N << " " << H << " " << W << " " << C;
   CAFFE_ENFORCE_EQ(kernel_.size(), 2,
                    "Only 2d convolution is supported with ARM compute backend");
 
@@ -51,6 +51,7 @@ bool GLConvOp<T>::RunOnDevice() {
   const int M = filter_->dim32(0);
   CAFFE_ENFORCE(filter_->dim32(2) == kernel_h());
   CAFFE_ENFORCE(filter_->dim32(3) == kernel_w());
+  LOG(ERROR) << "[C2DEBUG] " << filter_->dim32(1) << " " << C;
   CAFFE_ENFORCE(filter_->dim32(1) == C);
 
   if (first_run_) {
@@ -88,6 +89,12 @@ bool GLConvOp<T>::RunOnDevice() {
     filter_->lazy_allocate(filterblob, second_run_, second_run_);
     bias_->lazy_allocate(biasblob, second_run_, second_run_);
     second_run_ = false;
+    TensorCPU fakeX;
+    fakeX.Resize(X_->dims());
+    TensorCPU fakeY;
+    ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
+    Y->ResizeLike(fakeY);
+    LOG(ERROR) << "Conv [C2DEBUG] Y->dims " << Y->dims();
     Y->allocate();
     conv_.run();
   } else {
@@ -97,7 +104,9 @@ bool GLConvOp<T>::RunOnDevice() {
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
-    Y->ResizeLike(fakeY);
+    if(Y->ResizeLike(fakeY)) {
+      Y->allocate();
+    }
     conv_.configure(
                     X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                     Y->get_underlying(),

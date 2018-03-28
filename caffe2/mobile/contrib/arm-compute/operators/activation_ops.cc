@@ -21,7 +21,7 @@ bool GLReluOp<T>::RunOnDevice() {
     first_run_ = false;
     if (Y->get_underlying() != X_->get_underlying())
     {
-        Y->ResizeLike(*X_);
+      Y->ResizeLike(*X_);
     }
     relu_layer_.configure(
         X_->get_underlying(), Y->get_underlying(),
@@ -33,19 +33,16 @@ bool GLReluOp<T>::RunOnDevice() {
     second_run_ = false;
     // in place activation, do not need to allocate new memory
     if (Y->get_underlying() != X_->get_underlying()) {
-        Y->allocate();
+      Y->ResizeLike(*X_);
+      Y->allocate();
     }
     relu_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    arm_compute::TensorShape shape;
-    for (int i = 0; i < X_->dims().size(); i++) {
-      shape.set(X_->dims().size() - i - 1, X_->dims()[i]);
-    }
-    X_->get_underlying()->info()->set_tensor_shape(shape);
-    if (Y->get_underlying() != X_->get_underlying())
-    {
-        Y->ResizeLike(*X_);
+    if (Y->get_underlying() != X_->get_underlying()) {
+      if(Y->ResizeLike(*X_)) {
+        Y->allocate();
+      }
     }
     relu_layer_.configure(
         X_->get_underlying(), Y->get_underlying(),
@@ -57,7 +54,7 @@ bool GLReluOp<T>::RunOnDevice() {
   return true;
 }
 
-REGISTER_GL_OPERATOR(Relu, GLReluOp<half>);
+REGISTER_GL_OPERATOR(Relu, GLReluOp<DataType>);
 
 template <typename T>
 bool GLSigmoidOp<T>::RunOnDevice() {
@@ -86,6 +83,7 @@ bool GLSigmoidOp<T>::RunOnDevice() {
     second_run_ = false;
     // in place activation, do not need to allocate new memory
     if (Y->get_underlying() != X_->get_underlying()) {
+      Y->ResizeLike(*X_);
       Y->allocate();
     }
     sigmoid_layer_.run();
@@ -93,7 +91,9 @@ bool GLSigmoidOp<T>::RunOnDevice() {
     X_->lazy_allocate(Xblob, second_run_, true);
     if (Y->get_underlying() != X_->get_underlying())
     {
-        Y->ResizeLike(*X_);
+      if(Y->ResizeLike(*X_)) {
+        Y->allocate();
+      }
     }
     sigmoid_layer_.configure(
       X_->get_underlying(), Y->get_underlying(),
