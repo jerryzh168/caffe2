@@ -243,7 +243,7 @@ bool BoxWithNMSLimitOp<CPUContext>::RunOnDevice() {
             .cast<float>();
   }
 
-  LOG(ERROR) << "[C2DEBUG] box with nms limit: " << N;
+  // [TODO] change later
   if (out_scores->dim(0) < N) {
     auto num = N - out_scores->dim(0);
     out_scores->Extend(num, 50, &context_);

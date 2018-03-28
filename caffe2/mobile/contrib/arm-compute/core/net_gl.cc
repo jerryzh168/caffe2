@@ -78,12 +78,12 @@ bool GLNet::Run() {
     first_run_ = false;
     LOG(ERROR) << "[C2DEBUG] first run";
     for (auto& op: operators_) {
-      LOG(ERROR) << "[C2DEBUG] configure " << ProtoDebugString(op->debug_def());
+      //LOG(ERROR) << "[C2DEBUG] configure " << ProtoDebugString(op->debug_def());
       op->Run();
     }
     LOG(ERROR) << "[C2DEBUG] second run";
     for (auto& op: operators_) {
-      LOG(ERROR) << "[C2DEBUG] second run " << ProtoDebugString(op->debug_def());
+      //LOG(ERROR) << "[C2DEBUG] second run " << ProtoDebugString(op->debug_def());
       op->Run();
     }
   }
@@ -100,9 +100,8 @@ bool GLNet::Run() {
     }
   }
   int i = 0;
-  LOG(ERROR) << "[C2DEBUG] In Run";
   for (auto& op : operators_) {
-    LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
+    //LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
     ++i;
     bool res = op->Run();
     if (!res) {

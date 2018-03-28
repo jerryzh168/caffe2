@@ -144,7 +144,6 @@ template <> bool GLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
     X_->lazy_allocate(Xblob, second_run_, true);
     second_run_ = false;
     Y->Resize(output_dims);
-    LOG(ERROR) << "[C2DEBUG] max pool dims: " << Y->dims();
     Y->allocate();
     pooling_layer_.run();
   } else {
