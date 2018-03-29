@@ -198,20 +198,20 @@ public:
         auto H = Xcpu.dim32(2);
         auto W = Xcpu.dim32(3);
         arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-            std::copy_n(Xcpu.data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W, W, (T *)it.ptr());
+            std::copy_n(Xcpu.data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W, W, reinterpret_cast<T *>(it.ptr()));
           },
           it);
       } else if (Xcpu.ndim() == 3) {
         auto H = Xcpu.dim32(1);
         auto W = Xcpu.dim32(2);
         arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-            std::copy_n(Xcpu.data<float>() + (id.z() * (W * H) + id.y() * W), W, (T *)it.ptr());
+            std::copy_n(Xcpu.data<float>() + (id.z() * (W * H) + id.y() * W), W, reinterpret_cast<T *>(it.ptr()));
         },
         it);
       } else if (Xcpu.ndim() == 2) {
         auto W = Xcpu.dim32(1);
         arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-            std::copy_n(Xcpu.data<float>() + id.y() * W, W, (T *)it.ptr());
+            std::copy_n(Xcpu.data<float>() + id.y() * W, W, reinterpret_cast<T *>(it.ptr()));
         },
         it);
       } else {
@@ -219,7 +219,7 @@ public:
         w.use_tensor_dimensions(info->tensor_shape());
         arm_compute::Iterator i(get_underlying(), w);
         auto size = Xcpu.dim32(0);
-        std::copy_n(Xcpu.data<float>(), size, (T *)i.ptr());
+        std::copy_n(Xcpu.data<float>(), size, reinterpret_cast<T *>(i.ptr()));
       }
       unmap();
     }
@@ -328,8 +328,7 @@ void getTensorCPU(const GLTensor<T>& g_, TensorCPU& g) {
   //LOG(ERROR) << " [C2DEBUG] getTensorCPU " << g_.dims();
   GLContext::sync();
   g.Resize(g_.dims());
-  T *buffer = g_.map();
-  char *byte_buffer = (char *)buffer;
+  g_.map();
   auto tensor = g_.get_underlying();
   auto info = tensor->info();
   arm_compute::Window it_window;
@@ -340,20 +339,20 @@ void getTensorCPU(const GLTensor<T>& g_, TensorCPU& g) {
     auto H = g_.dim32(2);
     auto W = g_.dim32(3);
     arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-        std::copy_n((T *)it.ptr(), W, g.mutable_data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W);
+        std::copy_n(reinterpret_cast<T *>(it.ptr()), W, g.mutable_data<float>() + id[3] * (C * W * H) + id.z() * (W * H) + id.y() * W);
       },
       it);
   } else if (g_.ndim() == 3) {
     auto H = g_.dim32(1);
     auto W = g_.dim32(2);
     arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-        std::copy_n((T *)it.ptr(), W, g.mutable_data<float>() + (id.z() * (W * H) + id.y() * W));
+        std::copy_n(reinterpret_cast<T *>(it.ptr()), W, g.mutable_data<float>() + (id.z() * (W * H) + id.y() * W));
       },
       it);
   } else if (g_.ndim() == 2) {
     auto W = g_.dim32(1);
     arm_compute::execute_window_loop(it_window, [&](const arm_compute::Coordinates & id) {
-        std::copy_n((T *)it.ptr(), W, g.mutable_data<float>() + id.y() * W);
+        std::copy_n(reinterpret_cast<T *>(it.ptr()), W, g.mutable_data<float>() + id.y() * W);
       },
       it);
   } else {
@@ -361,11 +360,7 @@ void getTensorCPU(const GLTensor<T>& g_, TensorCPU& g) {
     w.use_tensor_dimensions(info->tensor_shape());
     arm_compute::Iterator i(tensor, w);
     auto size = g_.dim32(0);
-    std::copy_n((T *)i.ptr(), size, g.mutable_data<float>());
-    /* for (auto i = 0; i < g.size(); ++i) { */
-    /*   auto tmp = buffer[i]; */
-    /*   g.mutable_data<float>()[i] = tmp; */
-    /* } */
+    std::copy_n(reinterpret_cast<T *>(i.ptr()), size, g.mutable_data<float>());
   }
   g_.unmap();
 }
