@@ -31,7 +31,12 @@
 namespace caffe2 {
 
 typedef half_float::half half;
-typedef float DataType;
+//#define ACL_USE_FLOAT32
+#ifdef ACL_USE_FLOAT32
+ typedef float DataType;
+#else
+ typedef half DataType;
+#endif
 
 template <typename T> class GLTensor;
 
@@ -134,8 +139,13 @@ public:
     }
 
     if (need_allocation) {
+      #ifdef ACL_USE_FLOAT32
+      tensor_->allocator()->init(
+                                 arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F32));
+      #else
       tensor_->allocator()->init(
                                  arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+      #endif
     } else {
       tensor_->info()->set_tensor_shape(shape_);
     }
@@ -153,8 +163,13 @@ public:
       // TODO: Make it type generic
       //LOG(ERROR) << "[C2DEBUG] resize need_allocation";
       //tensor_->allocator()->free();
+      #ifdef ACL_USE_FLOAT32
+      tensor_->allocator()->init(
+                                 arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F32));
+      #else
       tensor_->allocator()->init(
                                  arm_compute::TensorInfo(shape_, 1, arm_compute::DataType::F16));
+      #endif
     } else {
       tensor_->info()->set_tensor_shape(shape_);
     }
@@ -326,7 +341,6 @@ private:
 template<typename T = half>
 void getTensorCPU(const GLTensor<T>& g_, TensorCPU& g) {
   //LOG(ERROR) << " [C2DEBUG] getTensorCPU " << g_.dims();
-  GLContext::sync();
   g.Resize(g_.dims());
   g_.map();
   auto tensor = g_.get_underlying();

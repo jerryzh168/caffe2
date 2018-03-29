@@ -1,4 +1,3 @@
-
 #include "rewrite_net.h"
 #include "caffe2/core/operator.h"
 #include "caffe2/utils/proto_utils.h"
@@ -147,10 +146,7 @@ static bool tryFuseAdjacentOps(const OperatorDef& currentOp,
   }
 
   static const std::map<std::pair<std::string, std::string>, std::string> fusionOpportunities = {
-      {{"OpenGLInstanceNorm", "OpenGLPRelu"}, "OpenGLInstanceNormPRelu"},
-      {{"OpenGLConv", "OpenGLPRelu"}, "OpenGLConvPRelu"},
-      {{"OpenGLConv", "OpenGLRelu"}, "OpenGLConvRelu"},
-      {{"OpenGLConvTranspose", "OpenGLPRelu"}, "OpenGLConvTransposePRelu"}};
+    {{"Conv", "Relu"}, "ConvRelu"}};
   auto it = fusionOpportunities.find({currentOp.type(), nextOp.type()});
   if (it == fusionOpportunities.end()) {
     return false;
