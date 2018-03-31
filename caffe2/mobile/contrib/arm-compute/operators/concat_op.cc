@@ -83,15 +83,16 @@ bool GLConcatOp<T>::RunOnDevice() {
       auto* Xblob = inputsBlob[i];
       X->lazy_allocate(Xblob, second_run_, true);
     }
-    if (Y->Resize(output_dims)) {
-      Y->allocate();
-    }
+    bool need_allocation = Y->Resize(output_dims);
     //LOG(ERROR) << "[C2DEBUG] Concat Y " << Y->dims();
     std::vector<arm_compute::IGCTensor*> inputsGC;
     for (int i = 0; i < inputs_.size(); ++i) {
       inputsGC.push_back(inputs_[i]->get_underlying());
     }
     concat_layer_.configure(inputsGC, Y->get_underlying());
+    if (need_allocation) {
+      Y->allocate();
+    }
     concat_layer_.run();
   }
 

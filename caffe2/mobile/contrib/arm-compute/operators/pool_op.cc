@@ -84,9 +84,7 @@ bool GLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
     pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if (Y->Resize(output_dims)) {
-      Y->allocate();
-    }
+    bool need_allocation =Y->Resize(output_dims);
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -97,6 +95,9 @@ bool GLAveragePoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::AVG, kernel_h(),
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
+    }
+    if (need_allocation) {
+      Y->allocate();
     }
     pooling_layer_.run();
   }
@@ -148,9 +149,7 @@ template <> bool GLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
     pooling_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if(Y->Resize(output_dims)) {
-      Y->allocate();
-    }
+    bool need_allocation = Y->Resize(output_dims);
     if (global_pooling_) {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
@@ -161,6 +160,9 @@ template <> bool GLMaxPoolOp<DataType>::RunOnDeviceWithOrderNCHW() {
       arm_compute::PoolingLayerInfo info(arm_compute::PoolingType::MAX, kernel_h(),
                                          ps_info);
       pooling_layer_.configure(X_->get_underlying(), Y->get_underlying(), info);
+    }
+    if (need_allocation) {
+      Y->allocate();
     }
     pooling_layer_.run();
   }

@@ -93,7 +93,7 @@ bool GLConvOp<T>::RunOnDevice() {
     TensorCPU fakeY;
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
     Y->ResizeLike(fakeY);
-    //LOG(ERROR) << "Conv [C2DEBUG] Y->dims " << Y->dims();
+      //LOG(ERROR) << "Conv [C2DEBUG] Y->dims " << Y->dims();
     Y->allocate();
     conv_.run();
   } else {
@@ -103,14 +103,19 @@ bool GLConvOp<T>::RunOnDevice() {
     fakeX.Resize(X_->dims());
     TensorCPU fakeY;
     ConvPoolOpBase<GLContext>::SetOutputSize(fakeX, &fakeY, filter_->dim32(0));
-    if(Y->ResizeLike(fakeY)) {
+    bool need_allocation = Y->ResizeLike(fakeY, true);
+    if (need_allocation) {
+      LOG(ERROR) << "[C2DEBUG] conv allocate";
       Y->allocate();
     }
     conv_.configure(
                     X_->get_underlying(), filter_->get_underlying(), bias_->get_underlying(),
                     Y->get_underlying(),
                     arm_compute::PadStrideInfo(stride_[0], stride_[1], pads_[0], pads_[1]));
+    Timer timer;
     conv_.run();
+    auto millis = timer.MilliSeconds();
+    //LOG(ERROR) << "[C2DEBUG]Conv " << millis;
  }
 
   return true;

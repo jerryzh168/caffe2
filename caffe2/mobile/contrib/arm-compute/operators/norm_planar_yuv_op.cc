@@ -54,10 +54,11 @@ template <typename T> bool GLNormalizePlanarYUVOp<T>::RunOnDevice() {
     norm_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if(Y->ResizeLike(*X_)) {
+    bool need_allocation = Y->ResizeLike(*X_);
+    norm_layer_.configure(X_->get_underlying(), Y->get_underlying(), mean_->get_underlying(), sd_->get_underlying());
+    if (need_allocation) {
       Y->allocate();
     }
-    norm_layer_.configure(X_->get_underlying(), Y->get_underlying(), mean_->get_underlying(), sd_->get_underlying());
     norm_layer_.run();
   }
 

@@ -59,11 +59,12 @@ bool GLFullyConnectedOp<T>::RunOnDevice() {
     fc_layer_.run();
   } else {
     X_->lazy_allocate(Xblob, second_run_, true);
-    if(Y->Resize(output_dims)) {
-      Y->allocate();
-    }
+    bool need_allocation = Y->Resize(output_dims);
     fc_layer_.configure(X_->get_underlying(), W_->get_underlying(),
                      B_->get_underlying(), Y->get_underlying(), true, false);
+    if (need_allocation) {
+      Y->allocate();
+    }
     fc_layer_.run();
   }
 

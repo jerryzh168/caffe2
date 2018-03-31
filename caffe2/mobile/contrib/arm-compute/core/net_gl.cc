@@ -6,6 +6,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <thread>
 
 #include "caffe2/core/operator.h"
 #include "caffe2/core/static_tracepoint.h"
@@ -58,36 +59,36 @@ GLNet::GLNet(
 
 bool GLNet::Run() {
   StartAllObservers();
+
   if (first_run_) {
     first_run_ = false;
-    LOG(ERROR) << "[C2DEBUG] first run";
     for (auto& op: operators_) {
       //LOG(ERROR) << "[C2DEBUG] configure " << ProtoDebugString(op->debug_def());
       op->Run();
     }
-    LOG(ERROR) << "[C2DEBUG] second run";
     for (auto& op: operators_) {
       //LOG(ERROR) << "[C2DEBUG] second run " << ProtoDebugString(op->debug_def());
       op->Run();
     }
-  }
-  VLOG(1) << "Running net " << name_;
-
-  // Change the parameters for GenerateProposals
-  for (int i = 0; i < operators_.size(); ++i) {
-    if (operators_[i]->debug_def().type() == "GenerateProposals") {
-      OperatorDef temp_def(operators_[i]->debug_def());
-      auto* arg = temp_def.add_arg();
-      arg->set_name("fill_output");
-      arg->set_i(0);
-      operators_[i].reset(CreateOperator(temp_def, ws_, i).release());
+    // Change the parameters for GenerateProposals
+    for (int i = 0; i < operators_.size(); ++i) {
+      if (operators_[i]->debug_def().type() == "GenerateProposals") {
+        OperatorDef temp_def(operators_[i]->debug_def());
+        auto* arg = temp_def.add_arg();
+        arg->set_name("fill_output");
+        arg->set_i(0);
+        operators_[i].reset(CreateOperator(temp_def, ws_, i).release());
+      }
     }
   }
+
+  VLOG(1) << "Running net " << name_;
   int i = 0;
   for (auto& op : operators_) {
     //LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
     ++i;
     bool res = op->Run();
+    //LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
     if (!res) {
       LOG(ERROR) << "[C2DEBUG] Operator failed: " << ProtoDebugString(op->debug_def());
       return false;
@@ -125,9 +126,11 @@ vector<float> GLNet::TEST_Benchmark(
 
   auto last_blob = output_blobs_[output_blobs_.size() - 1];
   Blob *gpu_out_blob = ws_->GetBlob(last_blob);
-  //auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
-  // Enforce gpu execution
-  //g_.sync();
+  // if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
+  //   auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
+  //   // Enforce gpu execution
+  //   g_.sync();
+  // }
 
   std::cout << "Main runs." << std::endl;
   CAFFE_ENFORCE(
@@ -139,10 +142,13 @@ vector<float> GLNet::TEST_Benchmark(
   for (int i = 0; i < main_runs; ++i) {
     CAFFE_ENFORCE(Run(), "Main run ", i, " has failed.");
   }
-  //g_.sync();
+  // if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
+  //   auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
+  //   g_.sync();
+  // }
 
   auto millis = timer.MilliSeconds();
-  std::cout << "[C2DEBUG] Main run finished. Milliseconds per iter: "
+  std::cout << "Main run finished. Milliseconds per iter: "
             << millis / main_runs
             << ". Iters per second: " << 1000.0 * main_runs / millis << std::endl;
 
@@ -174,10 +180,10 @@ vector<float> GLNet::TEST_Benchmark(
             op_type,
             ") has failed.");
         if (opengl_device_[idx] && op_type != "CopyFromGL") {
-          Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
+          //Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
           //LOG(ERROR) << "[C2DEBUG] trying to sync " << " " << op_type << " " << idx << " " << output_blobs_[idx];
-          auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
-          g_.sync();
+          //auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
+          //g_.sync();
         }
         float spent = timer.MilliSeconds();
         time_per_op[idx] += spent;
