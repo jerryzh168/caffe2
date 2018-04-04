@@ -24,6 +24,7 @@ bool CopyFromGLOp<T>::RunOnDevice() {
   //LOG(ERROR) << "[C2DEBUG] Copy X0 " << X0->dims();
   std::vector<const Blob*> inputsBlob;
   inputsBlob.push_back(X0blob);
+  bool half_copy = OperatorBase::GetSingleArgument<int>("half_copy", false);
 
   for (int i = 1; i < Inputs().size(); ++i) {
     auto *Xblob = OperatorBase::Inputs()[i];
@@ -43,7 +44,11 @@ bool CopyFromGLOp<T>::RunOnDevice() {
     for (int i = 0; i < Inputs().size(); ++i) {
       auto* Y = OperatorBase::Outputs()[i]->template GetMutable<TensorCPU>();
       Y->Resize(inputs_[i]->dims());
-      Y->template mutable_data<float>();
+      if (half_copy) {
+        Y->template mutable_data<float16>();
+      } else {
+        Y->template mutable_data<float>();
+      }
     }
   } else {
     for (auto i = 0; i < Inputs().size(); ++i) {
@@ -55,9 +60,9 @@ bool CopyFromGLOp<T>::RunOnDevice() {
       auto* Y = OperatorBase::Outputs()[i]->template GetMutable<TensorCPU>();
       Timer timer;
       timer.Start();
-      getTensorCPU(*X, *Y);
+      getTensorCPU(*X, *Y, half_copy);
       auto millis = timer.MilliSeconds();
-      //LOG(ERROR) << "[C2DEBUG] copy_op takes " << millis << " milliseconds";
+      LOG(ERROR) << "[C2DEBUG] copy_op " << X->dims() << " takes " << millis << " milliseconds";
     }
   }
 

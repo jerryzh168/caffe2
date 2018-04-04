@@ -63,11 +63,11 @@ bool GLNet::Run() {
   if (first_run_) {
     first_run_ = false;
     for (auto& op: operators_) {
-      //LOG(ERROR) << "[C2DEBUG] configure " << ProtoDebugString(op->debug_def());
+      LOG(ERROR) << "[C2DEBUG] configure " << ProtoDebugString(op->debug_def());
       op->Run();
     }
     for (auto& op: operators_) {
-      //LOG(ERROR) << "[C2DEBUG] second run " << ProtoDebugString(op->debug_def());
+      LOG(ERROR) << "[C2DEBUG] second run " << ProtoDebugString(op->debug_def());
       op->Run();
     }
     // Change the parameters for GenerateProposals
@@ -85,10 +85,12 @@ bool GLNet::Run() {
   VLOG(1) << "Running net " << name_;
   int i = 0;
   for (auto& op : operators_) {
-    //LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
+    LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
     ++i;
+    Timer timer;
     bool res = op->Run();
-    //LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
+    auto millis = timer.MilliSeconds();
+    LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
     if (!res) {
       LOG(ERROR) << "[C2DEBUG] Operator failed: " << ProtoDebugString(op->debug_def());
       return false;
@@ -126,11 +128,11 @@ vector<float> GLNet::TEST_Benchmark(
 
   auto last_blob = output_blobs_[output_blobs_.size() - 1];
   Blob *gpu_out_blob = ws_->GetBlob(last_blob);
-  // if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
-  //   auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
-  //   // Enforce gpu execution
-  //   g_.sync();
-  // }
+  if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
+    auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
+    // Enforce gpu execution
+    g_.sync();
+  }
 
   std::cout << "Main runs." << std::endl;
   CAFFE_ENFORCE(
@@ -142,10 +144,10 @@ vector<float> GLNet::TEST_Benchmark(
   for (int i = 0; i < main_runs; ++i) {
     CAFFE_ENFORCE(Run(), "Main run ", i, " has failed.");
   }
-  // if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
-  //   auto &g_ = gpu_out_blob->Get<GLTensor<half>>();
-  //   g_.sync();
-  // }
+  if (gpu_out_blob->IsType<GLTensor<DataType>>()) {
+    auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
+    g_.sync();
+  }
 
   auto millis = timer.MilliSeconds();
   std::cout << "Main run finished. Milliseconds per iter: "
@@ -180,10 +182,10 @@ vector<float> GLNet::TEST_Benchmark(
             op_type,
             ") has failed.");
         if (opengl_device_[idx] && op_type != "CopyFromGL") {
-          //Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
+          Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
           //LOG(ERROR) << "[C2DEBUG] trying to sync " << " " << op_type << " " << idx << " " << output_blobs_[idx];
-          //auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
-          //g_.sync();
+          auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
+          g_.sync();
         }
         float spent = timer.MilliSeconds();
         time_per_op[idx] += spent;

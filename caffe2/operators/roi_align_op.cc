@@ -2,6 +2,7 @@
 
 #include "caffe2/utils/eigen_utils.h"
 #include "caffe2/utils/math.h"
+#include "caffe2/core/timer.h"
 
 #ifdef CAFFE2_USE_MKL
 #include "caffe2/mkl/operators/operator_fallback_mkl.h"
@@ -122,16 +123,16 @@ template <typename T>
 void ROIAlignForward(
     const int nthreads,
     const T* bottom_data,
-    const T& spatial_scale,
+    const float& spatial_scale,
     const int channels,
     const int height,
     const int width,
     const int pooled_height,
     const int pooled_width,
     const int sampling_ratio,
-    const T* bottom_rois,
+    const float* bottom_rois,
     int roi_cols,
-    T* top_data,
+    float* top_data,
     StorageOrder order) {
   DCHECK(roi_cols == 4 || roi_cols == 5);
 
@@ -266,6 +267,209 @@ void ROIAlignForward(
   } // for n
 }
 
+template <>
+void ROIAlignForward<float16>(
+    const int nthreads,
+    const float16* bottom_data_c2,
+    const float& spatial_scale,
+    const int channels,
+    const int height,
+    const int width,
+    const int pooled_height,
+    const int pooled_width,
+    const int sampling_ratio,
+    const float* bottom_rois,
+    int roi_cols,
+    float* top_data,
+    StorageOrder order) {
+  DCHECK(roi_cols == 4 || roi_cols == 5);
+  const __fp16* bottom_data = reinterpret_cast<const __fp16*>(bottom_data_c2);
+  int n_rois = nthreads / channels / pooled_width / pooled_height;
+  // (n, c, ph, pw) is an element in the pooled output
+  // can be parallelized using omp
+  // #pragma omp parallel for num_threads(32)
+  for (int n = 0; n < n_rois; n++) {
+    int index_n = n * channels * pooled_width * pooled_height;
+
+    // roi could have 4 or 5 columns
+    const float* offset_bottom_rois = bottom_rois + n * roi_cols;
+    int roi_batch_ind = 0;
+    if (roi_cols == 5) {
+      roi_batch_ind = offset_bottom_rois[0];
+      offset_bottom_rois++;
+    }
+
+    // Do not using rounding; this implementation detail is critical
+    // float16x4_t vec = (float16x4_t)vld1_u16((const uint16_t*)offset_bottom_rois);
+    // float32x4_t offset_bottom_rois_32 = vcvt_f32_f16(vec);
+    // float roi_start_w = offset_bottom_rois_32[0] * spatial_scale;
+    // float roi_start_h = offset_bottom_rois_32[1] * spatial_scale;
+    // float roi_end_w = offset_bottom_rois_32[2] * spatial_scale;
+    // float roi_end_h = offset_bottom_rois_32[3] * spatial_scale;
+    float roi_start_w = offset_bottom_rois[0] * spatial_scale;
+    float roi_start_h = offset_bottom_rois[1] * spatial_scale;
+    float roi_end_w = offset_bottom_rois[2] * spatial_scale;
+    float roi_end_h = offset_bottom_rois[3] * spatial_scale;
+
+    // T roi_start_w = round(offset_bottom_rois[0] * spatial_scale);
+    // T roi_start_h = round(offset_bottom_rois[1] * spatial_scale);
+    // T roi_end_w = round(offset_bottom_rois[2] * spatial_scale);
+    // T roi_end_h = round(offset_bottom_rois[3] * spatial_scale);
+
+    // Force malformed ROIs to be 1x1
+    float roi_width = std::max(roi_end_w - roi_start_w, (float)1.);
+    float roi_height = std::max(roi_end_h - roi_start_h, (float)1.);
+    float bin_size_h = static_cast<float>(roi_height) / static_cast<float>(pooled_height);
+    float bin_size_w = static_cast<float>(roi_width) / static_cast<float>(pooled_width);
+
+    // We use roi_bin_grid to sample the grid and mimic integral
+    int roi_bin_grid_h = (sampling_ratio > 0)
+        ? sampling_ratio
+        : ceil(roi_height / pooled_height); // e.g., = 2
+    int roi_bin_grid_w =
+        (sampling_ratio > 0) ? sampling_ratio : ceil(roi_width / pooled_width);
+
+    // We do average (integral) pooling inside a bin
+    const float count = roi_bin_grid_h * roi_bin_grid_w; // e.g. = 4
+
+    // we want to precalculate indeces and weights shared by all chanels,
+    // this is the key point of optimiation
+    std::vector<PreCalc<float>> pre_calc(
+        roi_bin_grid_h * roi_bin_grid_w * pooled_width * pooled_height);
+    Timer timer;
+    pre_calc_for_bilinear_interpolate(
+        height,
+        width,
+        pooled_height,
+        pooled_width,
+        roi_bin_grid_h,
+        roi_bin_grid_w,
+        roi_start_h,
+        roi_start_w,
+        bin_size_h,
+        bin_size_w,
+        roi_bin_grid_h,
+        roi_bin_grid_w,
+        pre_calc);
+    auto millis = timer.MilliSeconds();
+    float acc1 = 0;
+    float acc2 = 0;
+    LOG(ERROR) << "[C2DEBUG] RoIAlign: precalc: " << millis;
+    timer.Start();
+    if (order == StorageOrder::NCHW) {
+      for (int c = 0; c < channels; c++) {
+        int index_n_c = index_n + c * pooled_width * pooled_height;
+        const __fp16* offset_bottom_data =
+          bottom_data + (roi_batch_ind * channels + c) * height * width;
+        int pre_calc_index = 0;
+
+        for (int ph = 0; ph < pooled_height; ph++) {
+          for (int pw = 0; pw < pooled_width; pw++) {
+            int index = index_n_c + ph * pooled_width + pw;
+
+            float output_val = 0.;
+            for (int iy = 0; iy < roi_bin_grid_h; iy++) {
+              for (int ix = 0; ix < roi_bin_grid_w; ix++) {
+                PreCalc<float> pc = pre_calc[pre_calc_index];
+                timer.Start();
+                uint16_t offset_bottom_data_vec4[4] = {
+                  ((const uint16_t*)offset_bottom_data)[pc.pos1],
+                  ((const uint16_t*)offset_bottom_data)[pc.pos2],
+                  ((const uint16_t*)offset_bottom_data)[pc.pos3],
+                  ((const uint16_t*)offset_bottom_data)[pc.pos4]
+                };
+                acc1 += timer.NanoSeconds();
+                timer.Start();
+                float16x4_t offset_bottom_data_vec = reinterpret_cast<float16x4_t>(vld1_u16(offset_bottom_data_vec4));
+                float32x4_t offset_bottom_data_32 = vcvt_f32_f16(offset_bottom_data_vec);
+                acc2 += timer.NanoSeconds();
+                output_val += pc.w1 * offset_bottom_data_32[0] +
+                    pc.w2 * offset_bottom_data_32[1] +
+                    pc.w3 * offset_bottom_data_32[2] +
+                    pc.w4 * offset_bottom_data_32[3];
+
+                pre_calc_index += 1;
+              }
+            }
+            output_val /= count;
+            // float32x4_t output_val_32 = {output_val, 0, 0, 0};
+            // top_data[index] = vcvt_f16_f32(output_val_32)[0];
+            top_data[index] = output_val;
+          } // for pw
+        } // for ph
+      } // for c
+    } // if nchw
+
+    millis = timer.MilliSeconds();
+    LOG(ERROR) << "[C2DEBUG] RoIAlign: output: " << millis;
+    LOG(ERROR) << "[C2DEBUG] RoIAlign: acc1: " << acc1;
+    LOG(ERROR) << "[C2DEBUG] RoIAlign: acc2: " << acc2;
+    if (order == StorageOrder::NHWC) {
+      const __fp16* offset_bottom_data =
+          bottom_data + roi_batch_ind * channels * height * width;
+      int pre_calc_index = 0;
+
+      for (int ph = 0; ph < pooled_height; ph++) {
+        for (int pw = 0; pw < pooled_width; pw++) {
+          EVecXf output_vals = EVecXf::Zero(channels);
+
+          for (int iy = 0; iy < roi_bin_grid_h; iy++) {
+            for (int ix = 0; ix < roi_bin_grid_w; ix++) {
+              PreCalc<float> pc = pre_calc[pre_calc_index];
+              uint16_t offset_bottom_data_vec4[4] = {
+                ((const uint16_t*)offset_bottom_data)[channels * pc.pos1],
+                ((const uint16_t*)offset_bottom_data)[channels * pc.pos2],
+                ((const uint16_t*)offset_bottom_data)[channels * pc.pos3],
+                ((const uint16_t*)offset_bottom_data)[channels * pc.pos4]
+              };
+              float* offset_bottom_data_32[4];
+              int pos[4] = {pc.pos1, pc.pos2, pc.pos3, pc.pos4};
+              for (int i = 0; i < 4; ++i) {
+                offset_bottom_data_32[i] = new float[channels];
+                auto c = 0;
+                while(c < channels) {
+                  float16x4_t offset_bottom_data_vec = (float16x4_t)vld1_u16((const uint16_t *)offset_bottom_data + channels * pos[i] + c);
+                  float32x4_t offset_bottom_data_32x4 = vcvt_f32_f16(offset_bottom_data_vec);
+                  offset_bottom_data_32[i][c] = offset_bottom_data_32x4[0];
+                  if (c + 1 < channels) {
+                    offset_bottom_data_32[i][c + 1] = offset_bottom_data_32x4[1];
+                  }
+                  if (c + 2 < channels) {
+                    offset_bottom_data_32[i][c + 2] = offset_bottom_data_32x4[2];
+                  }
+                  if (c + 3 < channels) {
+                    offset_bottom_data_32[i][c + 3] = offset_bottom_data_32x4[3];
+                  }
+                  c += 4;
+                }
+              }
+              ConstEigenVectorMap<float> data_1(
+                  offset_bottom_data_32[0], channels);
+              ConstEigenVectorMap<float> data_2(
+                  offset_bottom_data_32[1], channels);
+              ConstEigenVectorMap<float> data_3(
+                  offset_bottom_data_32[2], channels);
+              ConstEigenVectorMap<float> data_4(
+                  offset_bottom_data_32[3], channels);
+
+              output_vals += pc.w1 * data_1 + pc.w2 * data_2 + pc.w3 * data_3 +
+                  pc.w4 * data_4;
+
+              pre_calc_index += 1;
+            }
+          }
+          output_vals /= count;
+
+          int index_nhw = index_n + (ph * pooled_width + pw) * channels;
+          std::memcpy(
+              top_data + index_nhw, output_vals.data(), channels * sizeof(float));
+        } // for pw
+      } // for ph
+    } // if nhwc
+
+  } // for n
+}
+
 } // namespace
 
 template <>
@@ -273,6 +477,7 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
   auto& X = Input(0); // Input data to pool, NCHW
   auto& R = Input(1); // RoIs
   auto* Y = Output(0); // RoI pooled data
+  LOG(ERROR) << "[C2DEBUG] RoIAlign: " << X.dims();
   // [TODO] change
   if (R.size() == 0) {
     // Handle empty rois
@@ -334,6 +539,76 @@ bool RoIAlignOp<float, CPUContext>::RunOnDevice() {
   return true;
 }
 
+template <>
+bool RoIAlignOp<float16, CPUContext>::RunOnDevice() {
+  auto& X = Input(0); // Input data to pool, NCHW
+  auto& R = Input(1); // RoIs
+  LOG(ERROR) << "[C2DEBUG] Calling X";
+  X.data<float16>();
+  LOG(ERROR) << "[C2DEBUG] Calling R";
+  R.data<float>();
+  auto* Y = Output(0); // RoI pooled data
+  LOG(ERROR) << "[C2DEBUG] RoIAlign: " << X.dims();
+  // [TODO] change
+  if (R.size() == 0) {
+    // Handle empty rois
+    if (order_ == StorageOrder::NCHW) {
+      Y->Resize(1, X.dim32(1), pooled_height_, pooled_width_);
+    } else if (order_ == StorageOrder::NHWC) {
+      Y->Resize(1, pooled_height_, pooled_width_, X.dim32(3));
+    }
+    LOG(ERROR) << "[C2DEBUG] RoIAlign size == 0";
+    // The following mutable_data calls are needed to allocate the tensors
+    Y->mutable_data<float>();
+    return true;
+  }
+
+  CAFFE_ENFORCE_EQ(R.ndim(), 2);
+  // if R has 5 columns, the first column is the index, otherwise 0
+  CAFFE_ENFORCE(R.dim32(1) == 4 || R.dim32(1) == 5);
+
+  assert(sampling_ratio_ >= 0);
+
+  if (order_ == StorageOrder::NCHW) {
+    Y->Resize(R.dim32(0), X.dim32(1), pooled_height_, pooled_width_);
+    int output_size = Y->size();
+    ROIAlignForward<float16>(
+        output_size,
+        X.data<float16>(),
+        spatial_scale_,
+        X.dim32(1),
+        X.dim32(2),
+        X.dim32(3),
+        pooled_height_,
+        pooled_width_,
+        sampling_ratio_,
+        R.data<float>(),
+        R.dim32(1),
+        Y->mutable_data<float>(),
+        order_);
+  } else if (order_ == StorageOrder::NHWC) {
+    Y->Resize(R.dim32(0), pooled_height_, pooled_width_, X.dim32(3));
+    int output_size = Y->size();
+    ROIAlignForward<float16>(
+        output_size,
+        X.data<float16>(),
+        spatial_scale_,
+        X.dim32(3),
+        X.dim32(1),
+        X.dim32(2),
+        pooled_height_,
+        pooled_width_,
+        sampling_ratio_,
+        R.data<float>(),
+        R.dim32(1),
+        Y->mutable_data<float>(),
+        order_);
+  }
+
+  return true;
+}
+
+REGISTER_CPU_OPERATOR(RoIAlignHalf, RoIAlignOp<float16, CPUContext>);
 REGISTER_CPU_OPERATOR(RoIAlign, RoIAlignOp<float, CPUContext>);
 
 #ifdef CAFFE2_HAS_MKL_DNN

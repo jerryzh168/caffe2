@@ -41,12 +41,17 @@ static Analysis analyzeNet(const NetDef& net) {
   return analysis;
 }
 
-static void insertCopyFromGLOp(NetDef& predictNet, const std::string& cpu_blob) {
+static void insertCopyFromGLOp(NetDef& predictNet, const std::string& cpu_blob, bool half_copy = false) {
   auto* op = predictNet.add_op();
   op->set_name("CopyFromGL");
   op->set_type("CopyFromGL");
   op->add_input(cpu_blob + "_M");
   op->add_output(cpu_blob);
+  if (half_copy) {
+    auto* arg = op->add_arg();
+    arg->set_name("half_copy");
+    arg->set_i(1);
+  }
 }
 
 static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std::string>& cpuOp) {
@@ -80,6 +85,7 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
   LOG(ERROR) << "[C2DEBUG] def.op_size(): " << def.op_size();
   for (auto i = 0; i < def.op_size(); i++) {
     const auto& currentOp = def.op(i);
+    bool half_copy = currentOp.type() == "RoIAlign";
     if (cpuOp.count(currentOp.type()) > 0) {
       // CPU Op
       // insert copyFromOpenGLOp
@@ -87,11 +93,15 @@ static NetDef insertInputOutputCopyOps(const NetDef& def, std::unordered_set<std
         auto& input = currentOp.input(j);
         auto version = analysis.ssa[i].inVersions[input];
         if (gpu_blobs[input].count(version) > 0) {
-          insertCopyFromGLOp(mdef, input);
+          insertCopyFromGLOp(mdef, input, half_copy);
         }
       }
       auto* op = mdef.add_op();
       op->CopyFrom(currentOp);
+      if (op->type() == "RoIAlign") {
+        auto t = op->mutable_type();
+        *t = "RoIAlignHalf";
+      }
       for (auto j = 0; j < currentOp.output_size(); j++) {
         auto& output = currentOp.output(j);
         auto version = analysis.ssa[i].outVersions[output];
