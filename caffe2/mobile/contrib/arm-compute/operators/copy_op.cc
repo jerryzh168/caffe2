@@ -57,7 +57,7 @@ bool CopyFromGLOp<T>::RunOnDevice() {
       timer.Start();
       getTensorCPU(*X, *Y);
       auto millis = timer.MilliSeconds();
-      //LOG(ERROR) << "[C2DEBUG] copy_op takes " << millis << " milliseconds";
+      //LOG(ERROR) << "[C2DEBUG] copy_op " << X->dims() << " takes " << millis << " milliseconds";
     }
   }
 

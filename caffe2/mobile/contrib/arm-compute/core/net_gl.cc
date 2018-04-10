@@ -84,11 +84,15 @@ bool GLNet::Run() {
 
   VLOG(1) << "Running net " << name_;
   int i = 0;
+  //Timer timer;
   for (auto& op : operators_) {
     //LOG(ERROR) << "[C2DEBUG] running " << ProtoDebugString(op->debug_def()) << " " << i;
+    //LOG(ERROR) << "[C2DEBUG] running " << op->debug_def().type() << " " << i;
     ++i;
+    //timer.Start();
     bool res = op->Run();
-    //LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
+    // auto millis = timer.MilliSeconds();
+    // LOG(ERROR) << "[C2DEBUG] OP " << op->debug_def().type() << " " << millis <<" ms.";
     if (!res) {
       LOG(ERROR) << "[C2DEBUG] Operator failed: " << ProtoDebugString(op->debug_def());
       return false;
@@ -179,12 +183,12 @@ vector<float> GLNet::TEST_Benchmark(
             "(",
             op_type,
             ") has failed.");
-        if (opengl_device_[idx] && op_type != "CopyFromGL") {
-          //Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
-          //LOG(ERROR) << "[C2DEBUG] trying to sync " << " " << op_type << " " << idx << " " << output_blobs_[idx];
-          //auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
-          //g_.sync();
-        }
+        // if (opengl_device_[idx] && op_type != "CopyFromGL") {
+        //   Blob *gpu_out_blob = ws_->GetBlob(output_blobs_[idx]);
+        //   //LOG(ERROR) << "[C2DEBUG] trying to sync " << " " << op_type << " " << idx << " " << output_blobs_[idx];
+        //   auto &g_ = gpu_out_blob->Get<GLTensor<DataType>>();
+        //   g_.sync();
+        // }
         float spent = timer.MilliSeconds();
         time_per_op[idx] += spent;
         time_per_op_type[op_type] += spent;
